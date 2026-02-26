@@ -344,7 +344,7 @@ async def get_sources():
             {
                 "baseUrl": "https://beeg.com/",
                 "nickname": "Beeg",
-                "favicon": "https://beeg.com/favicon.ico",
+                "favicon": "https://cdn.brandfetch.io/id21sFe_5X/w/180/h/180/theme/dark/logo.png?c=1bxid64Mup7aczewSAYMX&t=1764366461758",
                 "accentColor": "#00BFA5",
                 "category": "free",
                 "isVerified": False,
@@ -359,7 +359,7 @@ async def get_sources():
             },
             {
                 "baseUrl": "https://fapnut.net/",
-                "nickname": "Fapnut",
+                "nickname": "OnlyFans",
                 "favicon": "https://fapnut.net/favicon.ico",
                 "accentColor": "#00AFF0",
                 "category": "paid",
