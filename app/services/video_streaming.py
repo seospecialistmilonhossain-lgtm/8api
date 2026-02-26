@@ -95,6 +95,10 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
                 if ".m3u8" in stream_url or "media=hls" in stream_url:
                     should_proxy = True
                     referer = "https://beeg.com/"
+            
+            if "pornxp.com" in stream_url or "porn-xp.com" in stream_url:
+                should_proxy = True
+                referer = "https://pornxp.io/"
                 
             if should_proxy:
                 encoded_url = quote(stream_url)
@@ -215,7 +219,12 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
              should_proxy = True
              referer = "https://beeg.com/"
              
-        if should_proxy:
+    # Also proxy MP4s from PornXP
+    if "pornxp.com" in stream_url or "porn-xp.com" in stream_url:
+         should_proxy = True
+         referer = "https://pornxp.io/"
+         
+    if should_proxy:
             from urllib.parse import quote
             # Construct proxy URL
             # api_base_url comes from get_video_info caller

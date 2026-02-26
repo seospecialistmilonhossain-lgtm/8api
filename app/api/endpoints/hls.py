@@ -39,6 +39,11 @@ async def hls_proxy(
     if origin:
         headers["Origin"] = origin
         
+    # Forward Range header for MP4 seeking
+    range_header = request.headers.get("range")
+    if range_header:
+        headers["Range"] = range_header
+        
     try:
         async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=30.0) as client:
             resp = await client.get(url)
@@ -122,10 +127,18 @@ async def hls_proxy(
             
             else:
                 # It's a segment (TS, MP4, Key, etc.) - Stream it
+                response_headers = {"Access-Control-Allow-Origin": "*"}
+                
+                # Forward essential Range headers back to client
+                for h in ["Content-Range", "Content-Length", "Accept-Ranges"]:
+                    if h.lower() in resp.headers:
+                        response_headers[h] = resp.headers[h.lower()]
+
                 return StreamingResponse(
                     resp.aiter_bytes(),
+                    status_code=resp.status_code,
                     media_type=content_type,
-                    headers={"Access-Control-Allow-Origin": "*"}
+                    headers=response_headers
                 )
                 
     except Exception as e:
