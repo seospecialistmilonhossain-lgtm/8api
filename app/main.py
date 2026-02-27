@@ -281,6 +281,46 @@ async def direct_stream_endpoint(
 app.include_router(explore.router, prefix="/api/v1")
 
 
+# --- Notifications ---
+from app.models.schemas import NotificationResponse, NotificationItem
+
+@api_v1_router.get("/notifications", response_model=NotificationResponse, tags=["Notifications"])
+async def get_notifications():
+    """
+    Get app notifications and announcements.
+    In a real app, these would come from a database.
+    """
+    sample_notifications = [
+        NotificationItem(
+            id="1",
+            title="Welcome to AppHub",
+            message="Thank you for using our app! Stay tuned for more features.",
+            type="info",
+            created_at=datetime.now()
+        ),
+        NotificationItem(
+            id="2",
+            title="Direct Downloads Added",
+            message="You can now download videos directly from XNXX, RedTube, and YouPorn!",
+            type="success",
+            created_at=datetime.now()
+        ),
+        NotificationItem(
+            id="3",
+            title="Premium Upgrade",
+            message="Check out our premium plans for faster streaming and exclusive content.",
+            type="warning",
+            action_text="View Plans",
+            action_url="apphub://premium",
+            created_at=datetime.now()
+        )
+    ]
+    return NotificationResponse(
+        notifications=sample_notifications,
+        total=len(sample_notifications)
+    )
+
+
 # --- AppHub Version ---
 from app import apphub_version
 @api_v1_router.get("/apphub/version", tags=["System"])
