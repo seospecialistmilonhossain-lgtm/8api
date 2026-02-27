@@ -295,7 +295,7 @@ async def get_notifications():
         NotificationItem(
             id="1",
             title="Welcome to AppHub",
-            message="Thank you for using our app! Stay tuned for more features..",
+            message="Thank you for using our app! Stay tuned for more features.",
             type="info",
             created_at=datetime.now()
         ),
