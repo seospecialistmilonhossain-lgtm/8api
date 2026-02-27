@@ -6,7 +6,7 @@ router = APIRouter()
 # Dummy Data matching the frontend implementation plan
 # In the future, this data will be fetched from a database table
 DUMMY_MEDIA_CONFIG = MediaConfigData(
-    title="Media Center",
+    title="IPTV",
     description="Choose a provider and category to start watching",
     pin="1234",
     providers=[
