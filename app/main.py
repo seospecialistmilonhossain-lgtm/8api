@@ -317,7 +317,6 @@ async def get_notifications():
             type="warning",
             action_text="View Plans",
             action_url="apphub://rewards",
-            action_url="apphub://rewards",
             created_at=datetime.now()
         )
     ]
