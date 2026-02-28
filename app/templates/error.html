@@ -1,154 +1,297 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ status_code }} - {{ message }}</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ status_code }} - AppHub</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        background: #0a0a0f;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        overflow: hidden;
+      }
+
+      /* Animated gradient orbs */
+      body::before,
+      body::after {
+        content: "";
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.4;
+        animation: float 8s ease-in-out infinite;
+      }
+
+      body::before {
+        width: 400px;
+        height: 400px;
+        background: #7c4dff;
+        top: -100px;
+        right: -100px;
+      }
+
+      body::after {
+        width: 350px;
+        height: 350px;
+        background: #448aff;
+        bottom: -80px;
+        left: -80px;
+        animation-delay: -4s;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
         }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+        33% {
+          transform: translate(30px, -30px) scale(1.05);
         }
-        
-        .error-container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 60px 40px;
-            max-width: 600px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideUp 0.6s ease-out;
+        66% {
+          transform: translate(-20px, 20px) scale(0.95);
         }
-        
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+      }
+
+      .container {
+        position: relative;
+        z-index: 1;
+        max-width: 480px;
+        width: 100%;
+        text-align: center;
+      }
+
+      /* App icon */
+      .app-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #7c4dff, #448aff);
+        border-radius: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 32px;
+        box-shadow: 0 8px 32px rgba(124, 77, 255, 0.3);
+        animation: iconPulse 3s ease-in-out infinite;
+      }
+
+      .app-icon svg {
+        width: 40px;
+        height: 40px;
+        fill: white;
+      }
+
+      @keyframes iconPulse {
+        0%,
+        100% {
+          box-shadow: 0 8px 32px rgba(124, 77, 255, 0.3);
         }
-        
+        50% {
+          box-shadow: 0 8px 48px rgba(124, 77, 255, 0.5);
+        }
+      }
+
+      .error-code {
+        font-size: 96px;
+        font-weight: 900;
+        background: linear-gradient(
+          135deg,
+          #7c4dff 0%,
+          #448aff 50%,
+          #7c4dff 100%
+        );
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+        margin-bottom: 16px;
+        animation: shimmer 3s linear infinite;
+      }
+
+      @keyframes shimmer {
+        to {
+          background-position: 200% center;
+        }
+      }
+
+      .error-message {
+        font-size: 22px;
+        font-weight: 700;
+        color: #e2e8f0;
+        margin-bottom: 12px;
+        letter-spacing: -0.3px;
+      }
+
+      .error-description {
+        font-size: 15px;
+        color: #94a3b8;
+        line-height: 1.6;
+        margin-bottom: 36px;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px);
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 28px;
+      }
+
+      .app-name {
+        font-size: 20px;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 6px;
+        letter-spacing: -0.3px;
+      }
+
+      .app-tagline {
+        font-size: 13px;
+        color: #64748b;
+        font-weight: 500;
+      }
+
+      .features {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .feature {
+        text-align: center;
+      }
+
+      .feature-icon {
+        font-size: 22px;
+        margin-bottom: 4px;
+      }
+
+      .feature-label {
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .btn-home {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 28px;
+        background: linear-gradient(135deg, #7c4dff 0%, #448aff 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 20px rgba(124, 77, 255, 0.3);
+        border: none;
+        cursor: pointer;
+      }
+
+      .btn-home:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 28px rgba(124, 77, 255, 0.5);
+      }
+
+      .footer-text {
+        margin-top: 24px;
+        font-size: 13px;
+        color: #475569;
+      }
+
+      @media (max-width: 640px) {
         .error-code {
-            font-size: 120px;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1;
-            margin-bottom: 20px;
-            animation: pulse 2s ease-in-out infinite;
+          font-size: 72px;
         }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        
+
         .error-message {
-            font-size: 28px;
-            font-weight: 600;
-            color: #2d3748;
-            margin-bottom: 16px;
+          font-size: 18px;
         }
-        
-        .error-description {
-            font-size: 16px;
-            color: #718096;
-            line-height: 1.6;
-            margin-bottom: 40px;
+
+        .card {
+          padding: 20px;
         }
-        
-        .error-details {
-            background: #f7fafc;
-            border-left: 4px solid #667eea;
-            padding: 16px;
-            border-radius: 8px;
-            text-align: left;
-            margin-bottom: 30px;
+
+        .features {
+          gap: 12px;
         }
-        
-        .error-details code {
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            color: #e53e3e;
-            background: #fff5f5;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-        
-        .btn-home {
-            display: inline-block;
-            padding: 14px 32px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-home:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-        
-        .footer-text {
-            margin-top: 30px;
-            font-size: 14px;
-            color: #a0aec0;
-        }
-        
-        @media (max-width: 640px) {
-            .error-container {
-                padding: 40px 24px;
-            }
-            
-            .error-code {
-                font-size: 80px;
-            }
-            
-            .error-message {
-                font-size: 22px;
-            }
-        }
+      }
     </style>
-</head>
-<body>
-    <div class="error-container">
-        <div class="error-code">{{ status_code }}</div>
-        <h1 class="error-message">{{ message }}</h1>
-        <p class="error-description">{{ description }}</p>
-        
-        {% if detail %}
-        <div class="error-details">
-            <strong>Details:</strong> <code>{{ detail }}</code>
+  </head>
+  <body>
+    <div class="container">
+      <div class="app-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"
+          />
+        </svg>
+      </div>
+
+      <div class="error-code">{{ status_code }}</div>
+      <h1 class="error-message">{{ message }}</h1>
+      <p class="error-description">{{ description }}</p>
+
+      <div class="card">
+        <div class="app-name">AppHub</div>
+        <div class="app-tagline">Stream • Download • Explore</div>
+
+        <div class="features">
+          <div class="feature">
+            <div class="feature-icon">📱</div>
+            <div class="feature-label">Apps</div>
+          </div>
+          <div class="feature">
+            <div class="feature-icon">🎬</div>
+            <div class="feature-label">Media</div>
+          </div>
+          <div class="feature">
+            <div class="feature-icon">📡</div>
+            <div class="feature-label">IPTV</div>
+          </div>
+          <div class="feature">
+            <div class="feature-icon">⬇️</div>
+            <div class="feature-label">Downloads</div>
+          </div>
         </div>
-        {% endif %}
-        
-        <a href="/docs" class="btn-home">📚 View API Documentation</a>
-        
-        <p class="footer-text">
-            Need help? Check the <a href="/docs" style="color: #667eea; text-decoration: none;">API docs</a>
-        </p>
+      </div>
+
+      <a href="/" class="btn-home">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+        </svg>
+        Go Home
+      </a>
+
+      <p class="footer-text">AppHub v3.0</p>
     </div>
-</body>
+  </body>
 </html>
