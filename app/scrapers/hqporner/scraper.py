@@ -226,6 +226,15 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
         return []
 
     soup = BeautifulSoup(html, "lxml")
+    
+    # Check for "No results" or "End of list" message
+    # HQPorner shows "CAN'T FIND ..." or "SORRY, I CAN'T FIND ..." when no more results
+    header = soup.select_one("h1.main-h1, h1")
+    if header:
+        header_text = header.get_text().upper()
+        if "CAN'T FIND" in header_text or "SORRY" in header_text:
+            return []
+
     items = []
 
     # Video items are in section.box.feature containers
