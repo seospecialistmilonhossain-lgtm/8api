@@ -241,25 +241,19 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
 
     items: list[dict[str, Any]] = []
 
-    # PornWex uses standard video listing with thumb items
-    # Try multiple selectors for compatibility
-    selectors = [
-        ".videos-list .video-item",
-        ".thumb-list .thumb-item",
-        ".list-videos .item",
-        ".video-list .video-item",
-        ".thumbs .thumb",
-    ]
+    # PornWex uses .ml-item containers (WP-Movie theme, same as XXXParodyHD)
+    video_cards = soup.select(".ml-item")
 
-    video_cards = []
-    for sel in selectors:
-        video_cards = soup.select(sel)
-        if video_cards:
-            break
-
-    # Fallback: look for any container with video links
+    # Fallback: try other common selectors
     if not video_cards:
-        # Find all links to /video/ pages and work from their parent
+        for sel in [".videos-list .video-item", ".thumb-list .thumb-item",
+                    ".list-videos .item", ".video-list .video-item"]:
+            video_cards = soup.select(sel)
+            if video_cards:
+                break
+
+    # Last fallback: find any container with video links
+    if not video_cards:
         for link in soup.select('a[href*="/video/"]'):
             parent = link.find_parent(["div", "li", "article"])
             if parent and parent not in video_cards:
@@ -267,28 +261,36 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
 
     for card in video_cards:
         try:
-            link = card.select_one('a[href*="/video/"]')
+            # Primary: a.ml-mask link
+            link = card.select_one("a.ml-mask")
+            if not link:
+                link = card.select_one('a[href*="/video/"]')
+            if not link:
+                link = card.select_one("a[href]")
             if not link:
                 continue
 
-            href = link.get("href", "")
+            href = link.get("href", "") or link.get("data-href", "")
             if not href:
                 continue
             if href.startswith("/"):
                 href = f"https://www.pornwex.tv{href}"
 
-            # Title
-            title = link.get("title") or _text(link)
+            # Title: .mli-info h2, or link title/oldtitle
+            title_el = card.select_one(".mli-info h2")
+            title = _text(title_el) if title_el else (
+                link.get("oldtitle") or link.get("title") or _text(link)
+            )
             if not title:
-                title_el = card.select_one(".title, .video-title")
+                title_el = card.select_one("strong, .title, .video-title")
                 title = _text(title_el) if title_el else None
 
             # Thumbnail
             img = card.select_one("img")
             thumb = _best_image_url(img)
 
-            # Duration
-            dur_el = card.select_one(".duration, .thumb-duration, .video-duration")
+            # Duration: .mli-info1 or .duration
+            dur_el = card.select_one(".mli-info1, .duration, .thumb-duration, .video-duration")
             duration = _text(dur_el) if dur_el else None
 
             # Views
@@ -298,7 +300,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
                 views = _text(views_el)
 
             # Upload time
-            time_el = card.select_one(".added, .video-added, .date, time")
+            time_el = card.select_one(".added, .video-added, .date, time, em")
             upload_time = _text(time_el) if time_el else None
 
             items.append({
@@ -313,3 +315,4 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
             continue
 
     return items
+
