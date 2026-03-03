@@ -259,7 +259,13 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
     # Strategy: Find all potential video items, then group by parent container.
     # The container with the most items is the Main List.
     container_selector = ".js-video-item, .video-item, .video-list-video, [data-testid='video-item']"
-    selected_items = soup.select(container_selector)
+    
+    # Target only the main content area to avoid featured items in the header
+    main_content = soup.select_one('main[data-testid="main"]')
+    if main_content:
+        selected_items = main_content.select(container_selector)
+    else:
+        selected_items = soup.select(container_selector)
     
     for item in selected_items:
         try:
