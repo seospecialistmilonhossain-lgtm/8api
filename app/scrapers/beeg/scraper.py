@@ -5,6 +5,7 @@ import re
 import os
 from typing import Any, Optional
 
+import httpx
 from bs4 import BeautifulSoup
 
 def can_handle(host: str) -> bool:
@@ -20,12 +21,15 @@ def get_categories() -> list[dict]:
         return []
 
 async def fetch_html(url: str) -> str:
-    from app.core.pool import pool, fetch_html as pool_fetch_html
+    from app.core import pool
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        # Beeg seems to check Referer for some API calls, but for HTML it's fine
     }
-    return await pool_fetch_html(url, headers=headers)
+    resp = await pool.client.get(url, headers=headers)
+    resp.raise_for_status()
+    return resp.text
 
 async def scrape(url: str) -> dict[str, Any]:
     # Beeg video URLs are usually https://beeg.com/{id}

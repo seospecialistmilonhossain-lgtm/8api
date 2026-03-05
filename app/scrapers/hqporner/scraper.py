@@ -55,7 +55,9 @@ async def fetch_html(url: str) -> str:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     }
-    return await pool.fetch_html(url, headers=headers)
+    resp = await pool.client.get(url, headers=headers)
+    resp.raise_for_status()
+    return resp.text
 
 
 async def _extract_video_from_iframe(iframe_src: str) -> dict[str, Any]:

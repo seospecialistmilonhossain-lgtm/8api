@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from bs4 import BeautifulSoup
 
-from app.core.pool import pool, fetch_html as pool_fetch_html
+from app.core import pool
 
 
 def can_handle(host: str) -> bool:
@@ -20,14 +20,14 @@ async def fetch_html(url: str) -> str:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
     }
-    async with pool.request("GET", url, headers=headers, allow_redirects=True) as resp:
-        resp.raise_for_status()
+    resp = await pool.client.get(url, headers=headers, follow_redirects=True)
+    resp.raise_for_status()
+    
+    # Check if a paginated request was redirected to the base URL (meaning no more pages)
+    if "/page/" in url and "/page/" not in str(resp.url):
+        return ""
         
-        # Check if a paginated request was redirected to the base URL (meaning no more pages)
-        if "/page/" in url and "/page/" not in str(resp.url):
-            return ""
-            
-        return await resp.text()
+    return resp.text
 
 
 def _text(el: Any) -> Optional[str]:
@@ -217,6 +217,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
     elif not target_url.endswith("/") and "?" not in target_url:
         target_url += "/"
 
+    import httpx
     try:
         html = await fetch_html(target_url)
     except httpx.HTTPStatusError as e:

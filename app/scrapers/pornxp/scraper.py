@@ -4,6 +4,7 @@ import json
 import re
 from typing import Any, Optional
 
+import httpx
 from bs4 import BeautifulSoup
 
 
@@ -11,7 +12,7 @@ def can_handle(host: str) -> bool:
     return host.lower().endswith("pornxp.io") or host.lower().endswith("pornxp.hn")
 
 
-from app.core.pool import pool, fetch_html as pool_fetch_html
+from app.core import pool
 
 async def fetch_html(url: str) -> str:
     headers = {
@@ -19,7 +20,9 @@ async def fetch_html(url: str) -> str:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
     }
-    return await pool_fetch_html(url, headers=headers)
+    resp = await pool.client.get(url, headers=headers)
+    resp.raise_for_status()
+    return resp.text
 
 
 def _first_non_empty(*values: Optional[str]) -> Optional[str]:

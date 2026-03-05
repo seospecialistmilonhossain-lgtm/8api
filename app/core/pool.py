@@ -50,40 +50,13 @@ class ConnectionPool:
                 connector=connector,
                 timeout=timeout,
                 headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             )
             
             logger.info("Created HTTP connection pool with 100 connections")
         
         return self._session
-
-    def request(self, method: str, url: str, **kwargs):
-        """
-        Return an async context manager for a pooled request.
-        
-        Usage:
-            async with pool.request('GET', url) as resp:
-                ...
-        """
-        class RequestContext:
-            def __init__(self, pool_inst, method, url, kwargs):
-                self.pool = pool_inst
-                self.method = method
-                self.url = url
-                self.kwargs = kwargs
-                self.resp = None
-
-            async def __aenter__(self):
-                session = await self.pool.get_session()
-                self.resp = await session.request(self.method, self.url, **self.kwargs)
-                return self.resp
-
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                if self.resp:
-                    await self.resp.__aexit__(exc_type, exc_val, exc_tb)
-
-        return RequestContext(self, method, url, kwargs)
     
     async def close(self):
         """Close the session and cleanup connections"""

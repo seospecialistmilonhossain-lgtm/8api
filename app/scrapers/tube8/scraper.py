@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
+import re
 import os
 from typing import Any
 
+import httpx
 from bs4 import BeautifulSoup
 
-from app.core.pool import pool, fetch_html as pool_fetch_html, fetch_json as pool_fetch_json
+
+from app.core.pool import fetch_html as pool_fetch_html
 
 
 def can_handle(host: str) -> bool:
@@ -43,11 +47,12 @@ async def _resolve_proxy_url(proxy_url: str) -> list[dict]:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json",
         }
-        async with pool.request("GET", proxy_url, headers=headers, timeout=10.0, allow_redirects=True) as resp:
-            if resp.status != 200:
+        async with httpx.AsyncClient(headers=headers, timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(proxy_url)
+            if resp.status_code != 200:
                 return []
             
-            data = await resp.json()
+            data = resp.json()
             if isinstance(data, list):
                 streams = []
                 for item in data:
