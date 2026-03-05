@@ -277,6 +277,8 @@ async def scrape(url: str) -> dict[str, Any]:
         digits = "".join(filter(str.isdigit, str(q)))
         return int(digits) if digits else 0
         
+    # Filter out 180p quality as requested
+    streams = [s for s in streams if get_quality_val(s) != 180]
     streams.sort(key=get_quality_val, reverse=True)
     
     # Write back to result
