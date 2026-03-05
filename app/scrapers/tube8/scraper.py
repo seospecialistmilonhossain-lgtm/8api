@@ -189,8 +189,74 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
 
 
 async def scrape(url: str) -> dict[str, Any]:
+    # Check if this is a direct HLS media URL (user requested)
+    if "/media/hls/" in url:
+        return await scrape_direct_hls(url)
+        
     html = await fetch_html(url)
     return parse_page(html, url)
+
+
+async def scrape_direct_hls(url: str) -> dict[str, Any]:
+    """
+    Directly scrape the HLS JSON endpoint provided by Tube8.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        "Referer": "https://www.tube8.com/",
+        "Cookie": "platform=pc"
+    }
+    
+    async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+        resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            raise Exception(f"Failed to fetch HLS data: {resp.status_code}")
+            
+        data = resp.json()
+        streams = []
+        hls_url = None
+        
+        for item in data:
+            video_url = item.get("videoUrl")
+            if not video_url:
+                continue
+                
+            quality = str(item.get("quality", "adaptive"))
+            if quality.isdigit():
+                quality = f"{quality}p"
+                
+            fmt = item.get("format", "hls")
+            
+            stream = {
+                "quality": quality,
+                "url": video_url,
+                "format": fmt
+            }
+            streams.append(stream)
+            
+            if item.get("defaultQuality") or not hls_url:
+                hls_url = video_url
+
+        video_data = {
+            "streams": streams,
+            "default": hls_url,
+            "has_video": bool(streams)
+        }
+        
+        return {
+            "url": url,
+            "title": "Tube8 HLS Stream",
+            "description": None,
+            "thumbnail_url": None,
+            "duration": None,
+            "views": None,
+            "uploader_name": "Tube8",
+            "category": "Tube8",
+            "tags": [],
+            "video": video_data,
+            "related_videos": [],
+            "preview_url": None,
+        }
 
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
