@@ -192,7 +192,7 @@ EXPLORE_SOURCES = [
         searchUrlTemplate="https://www.tube8.com/searches.html/?q={query}",
         sourceId="tube8",
         disable=False,
-        pageSize=100,
+        pageSize=54,
     ),
     ExploreSourceResponse(
         baseUrl="https://www.pornhat.com/",
@@ -205,7 +205,7 @@ EXPLORE_SOURCES = [
         searchUrlTemplate="https://www.pornhat.com/search/{query}/",
         sourceId="pornhat",
         disable=False,
-        pageSize=100,
+        pageSize=60,
     ),
 ]
 
