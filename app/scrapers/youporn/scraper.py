@@ -55,16 +55,20 @@ def get_categories() -> list[dict]:
         return []
 
 async def fetch_html(url: str) -> str:
-    from app.core import pool
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         # Mobile cookie might be needed? Usually desktop is safer for parsing.
         # YouPorn might not strict check 'platform=pc' but good practice if structure varies
     }
-    resp = await pool.client.get(url, headers=headers)
-    resp.raise_for_status()
-    return resp.text
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=httpx.Timeout(20.0, connect=20.0),
+        headers=headers,
+    ) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        return resp.text
 
 async def _resolve_proxy_url(proxy_url: str) -> list[dict]:
     """
@@ -72,34 +76,34 @@ async def _resolve_proxy_url(proxy_url: str) -> list[dict]:
     Returns a list of stream objects with quality, url, format.
     """
     try:
-        from app.core import pool
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json",
         }
-        resp = await pool.client.get(proxy_url, headers=headers)
-        if resp.status_code != 200:
-            return []
+        async with httpx.AsyncClient(headers=headers, timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(proxy_url)
+            if resp.status_code != 200:
+                return []
             
-        data = resp.json()
-        if isinstance(data, list):
-            streams = []
-            for item in data:
-                quality = item.get("quality")
-                video_url = item.get("videoUrl")
-                fmt = item.get("format", "mp4")
-                
-                if video_url:
-                    # Convert quality to string
-                    if isinstance(quality, int):
-                        quality = str(quality)
+            data = resp.json()
+            if isinstance(data, list):
+                streams = []
+                for item in data:
+                    quality = item.get("quality")
+                    video_url = item.get("videoUrl")
+                    fmt = item.get("format", "mp4")
                     
-                    streams.append({
-                        "quality": quality if quality else "unknown",
-                        "url": video_url,
-                        "format": fmt
-                    })
-            return streams
+                    if video_url:
+                        # Convert quality to string
+                        if isinstance(quality, int):
+                            quality = str(quality)
+                        
+                        streams.append({
+                            "quality": quality if quality else "unknown",
+                            "url": video_url,
+                            "format": fmt
+                        })
+                return streams
     except Exception:
         pass
     
