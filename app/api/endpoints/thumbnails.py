@@ -3,9 +3,24 @@ from fastapi import APIRouter, HTTPException, Query, Response, Request
 from fastapi.responses import StreamingResponse
 from urllib.parse import quote
 import logging
+from typing import Optional
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Shared client for connection pooling
+_client_instance: Optional[httpx.AsyncClient] = None
+
+async def get_proxy_client() -> httpx.AsyncClient:
+    """Get or create the shared HTTPX client for proxying."""
+    global _client_instance
+    if _client_instance is None or _client_instance.is_closed:
+        _client_instance = httpx.AsyncClient(
+            follow_redirects=True, 
+            timeout=15.0,
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        )
+    return _client_instance
 
 @router.get("/proxy", summary="Thumbnail Proxy")
 async def thumbnail_proxy(
@@ -56,33 +71,35 @@ async def thumbnail_proxy(
             headers["Referer"] = "https://www.tube8.com/"
 
     try:
-        # Use a single-use client for simplicity, though a pooled one is better for high volume
-        async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=15.0) as client:
-            resp = await client.get(url)
-            
-            if resp.status_code >= 400:
-                logger.warning(f"Thumbnail proxy upstream error {resp.status_code} for {url}")
-                raise HTTPException(status_code=resp.status_code, detail=f"Upstream returned {resp.status_code}")
-            
-            content_type = resp.headers.get("content-type", "image/jpeg")
-            
-            # Forward the image content
-            return Response(
-                content=resp.content,
-                media_type=content_type,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "public, max-age=86400",  # 24 hour cache
-                    "X-Proxy-Origin": "AppHub-Thumbnail-Proxy"
-                }
-            )
+        # Use shared pooled client to prevent resource exhaustion (500 errors during bursts)
+        client = await get_proxy_client()
+        resp = await client.get(url, headers=headers)
+        if resp.status_code >= 400:
+            logger.warning(f"Thumbnail proxy upstream error {resp.status_code} for {url}")
+            raise HTTPException(status_code=resp.status_code, detail=f"Upstream returned {resp.status_code}")
+        
+        content_type = resp.headers.get("content-type", "image/jpeg")
+        
+        # Forward the image content
+        return Response(
+            content=resp.content,
+            media_type=content_type,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=86400",  # 24 hour cache
+                "X-Proxy-Origin": "AppHub-Thumbnail-Proxy"
+            }
+        )
                 
+    except httpx.TimeoutException:
+        logger.warning(f"Thumbnail Proxy timeout for {url}")
+        raise HTTPException(status_code=504, detail="Upstream timeout")
     except httpx.RequestError as e:
-        logger.error(f"Thumbnail Proxy request error: {e}")
+        logger.error(f"Thumbnail Proxy request error for {url}: {e}")
         raise HTTPException(status_code=502, detail=f"Failed to connect to upstream: {str(e)}")
     except Exception as e:
-        logger.error(f"Thumbnail Proxy unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Thumbnail Proxy unexpected error for {url}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error in thumbnail proxy")
 
 def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
     """Helper to wrap specific thumbnails in the proxy URL."""
