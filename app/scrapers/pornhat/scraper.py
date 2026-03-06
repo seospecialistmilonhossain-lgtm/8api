@@ -9,7 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 
-from app.core.pool import fetch_html as pool_fetch_html
+from app.core.pool import pool, fetch_html as pool_fetch_html
 
 
 def can_handle(host: str) -> bool:
@@ -174,9 +174,52 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
     }
 
 
+async def _resolve_redirect(url: str) -> str:
+    """
+    Follow redirects to get the final CDN URL.
+    Pornhat uses /get_file/ redirects to signed CDN URLs.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        "Referer": "https://www.pornhat.com/"
+    }
+    
+    try:
+        session = await pool.get_session()
+        async with session.get(url, headers=headers, allow_redirects=True) as response:
+            final_url = str(response.url)
+            # Basic validation
+            if any(x in final_url for x in (".mp4", ".m3u8", "privatehost.com", "cdn")):
+                return final_url
+    except Exception:
+        pass
+        
+    return url
+
+
 async def scrape(url: str) -> dict[str, Any]:
     html = await fetch_html(url)
-    return parse_page(html, url)
+    data = parse_page(html, url)
+    
+    # Resolve redirects for all streams
+    if data.get("video") and data["video"].get("streams"):
+        resolved_streams = []
+        for s in data["video"]["streams"]:
+            if "get_file" in s["url"]:
+                s["url"] = await _resolve_redirect(s["url"])
+                # Update format after resolution
+                if ".m3u8" in s["url"]:
+                    s["format"] = "hls"
+                elif ".mp4" in s["url"]:
+                    s["format"] = "mp4"
+            resolved_streams.append(s)
+        data["video"]["streams"] = resolved_streams
+        
+        # Update default stream if needed
+        if data["video"].get("default") and "get_file" in data["video"]["default"]:
+            data["video"]["default"] = await _resolve_redirect(data["video"]["default"])
+            
+    return data
 
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
