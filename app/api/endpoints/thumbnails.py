@@ -1,31 +1,14 @@
-from curl_cffi.requests import AsyncSession
 from fastapi import APIRouter, HTTPException, Query, Response, Request
-from fastapi.responses import StreamingResponse
 from urllib.parse import quote
 import logging
 import asyncio
+from app.core.pool import pool
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Shared session for connection pooling and browser impersonation
-_proxy_session: AsyncSession | None = None
-_session_lock = asyncio.Lock()
-
-async def get_proxy_session() -> AsyncSession:
-    """Get or initialize the global AsyncSession for the thumbnail proxy."""
-    global _proxy_session
-    if _proxy_session is None:
-        async with _session_lock:
-            if _proxy_session is None:
-                # Initialize with chrome120 impersonation to look like a real browser
-                _proxy_session = AsyncSession(
-                    impersonate="chrome120",
-                    follow_redirects=True,
-                    timeout=15.0,
-                    # Pooling is handled internally by curl_cffi
-                )
-    return _proxy_session
+# Global pool is used for connection pooling
+# No need for local AsyncSession anymore
 
 @router.get("/proxy", summary="Thumbnail Proxy")
 async def thumbnail_proxy(
@@ -42,10 +25,10 @@ async def thumbnail_proxy(
     
     url_lower = url.lower()
     is_hqporner = "hqporner.com" in url_lower
-    is_youporn = "ypncdn.com" in url_lower or "youporn.com" in url_lower
-    is_pornhub = "phncdn.com" in url_lower or "pornhub.com" in url_lower
-    is_redtube = "rdtcdn.com" in url_lower or "redtube.com" in url_lower
-    is_tube8 = "t8cdn.com" in url_lower or "tube8.com" in url_lower
+    is_youporn = any(x in url_lower for x in ["ypncdn.com", "youporn.com"])
+    is_pornhub = any(x in url_lower for x in ["phncdn.com", "pornhub.com"])
+    is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
+    is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
     
     if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8):
         raise HTTPException(status_code=403, detail="Only allowed domains are supported")
@@ -76,27 +59,26 @@ async def thumbnail_proxy(
             headers["Referer"] = "https://www.tube8.com/"
 
     try:
-        session = await get_proxy_session()
+        session = await pool.get_session()
         
-        # Use a timeout context for the request
-        resp = await session.get(url, headers=headers)
+        async with session.get(url, headers=headers, timeout=15.0) as resp:
+            if resp.status >= 400:
+                logger.warning(f"Thumbnail proxy upstream error {resp.status} for {url}")
+                raise HTTPException(status_code=resp.status, detail=f"Upstream returned {resp.status}")
             
-        if resp.status_code >= 400:
-            logger.warning(f"Thumbnail proxy upstream error {resp.status_code} for {url}")
-            raise HTTPException(status_code=resp.status_code, detail=f"Upstream returned {resp.status_code}")
-        
-        content_type = resp.headers.get("content-type", "image/jpeg")
-        
-        # Forward the image content
-        return Response(
-            content=resp.content,
-            media_type=content_type,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Cache-Control": "public, max-age=86400",  # 24 hour cache
-                "X-Proxy-Origin": "AppHub-Thumbnail-Proxy"
-            }
-        )
+            content = await resp.read()
+            content_type = resp.headers.get("Content-Type", "image/jpeg")
+            
+            # Forward the image content
+            return Response(
+                content=content,
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=86400",  # 24 hour cache
+                    "X-Proxy-Origin": "AppHub-Thumbnail-Proxy"
+                }
+            )
                 
     except Exception as e:
         # Check specifically for curl_cffi errors if possible, or generic catch-all
@@ -115,10 +97,10 @@ def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
         
     url_lower = url.lower()
     is_hqporner = "hqporner.com" in url_lower
-    is_youporn = "ypncdn.com" in url_lower or "youporn.com" in url_lower
-    is_pornhub = "phncdn.com" in url_lower or "pornhub.com" in url_lower
-    is_redtube = "rdtcdn.com" in url_lower or "redtube.com" in url_lower
-    is_tube8 = "t8cdn.com" in url_lower or "tube8.com" in url_lower
+    is_youporn = any(x in url_lower for x in ["ypncdn.com", "youporn.com"])
+    is_pornhub = any(x in url_lower for x in ["phncdn.com", "pornhub.com"])
+    is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
+    is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
     
     if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8):
         return url
