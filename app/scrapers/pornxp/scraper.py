@@ -53,6 +53,8 @@ def _best_image_url(img: Any) -> Optional[str]:
             url = str(v).strip()
             if url.startswith("//"):
                 return f"https:{url}"
+            if url.startswith("/"):
+                return f"https://pornxp.io{url}"
             return url
     return None
 
@@ -79,7 +81,12 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
     if video_el:
         poster = video_el.get("poster")
         if poster:
-            thumbnail = f"https:{poster}" if poster.startswith("//") else poster
+            if poster.startswith("//"):
+                thumbnail = f"https:{poster}"
+            elif poster.startswith("/"):
+                thumbnail = f"https://pornxp.io{poster}"
+            else:
+                thumbnail = poster
 
     # Video Stream URL
     video_url = None
