@@ -121,6 +121,11 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
                 should_proxy = True
                 referer = "https://brazzpw.com/"
                 
+            # Gosexpod CDN hotlink protection (e2c.gosexpod.com, e3c.gosexpod.com, etc.)
+            if "gosexpod.com" in stream_url and stream_url != url:
+                should_proxy = True
+                referer = "https://www.gosexpod.com/"
+                
             if should_proxy:
                 encoded_url = quote(stream_url)
                 encoded_referer = quote(referer)
