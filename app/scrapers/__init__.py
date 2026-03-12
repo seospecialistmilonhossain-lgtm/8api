@@ -27,5 +27,8 @@ from . import xxxparodyhd
 from . import pornwex
 from . import tube8
 from . import pornhat
+from . import brazzpw
+from . import gosexpod
+from . import watcherotic
 
-__all__ = ['xnxx', 'xhamster', 'xvideos', 'masa49', 'pornhub', 'youporn', 'redtube', 'beeg', 'spankbang', 'fapnut', 'pornxp', 'hqporner', 'xxxparodyhd', 'pornwex', 'tube8', 'pornhat']
+__all__ = ['xnxx', 'xhamster', 'xvideos', 'masa49', 'pornhub', 'youporn', 'redtube', 'beeg', 'spankbang', 'fapnut', 'pornxp', 'hqporner', 'xxxparodyhd', 'pornwex', 'tube8', 'pornhat', 'brazzpw', 'gosexpod', 'watcherotic']
