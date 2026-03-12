@@ -71,23 +71,38 @@ async def scrape(url: str) -> dict:
                 except:
                     pass
             
-            if not video_url:
-                # Fallback: Many sites with this structure use a get_file redirect or specific player logic
-                # For brazzpw, let's try to use the iframe as an embed if all else fails
-                # But here we will try to find if there's a direct .mp4 in the player page
+    # Fallback to script extraction if needed
+    hls_url = None
+    if not video_url:
+        if iframe:
+            iframe_src = iframe.get('src')
+            if iframe_src:
+                if not iframe_src.startswith('http'):
+                    iframe_src = f"https://brazzpw.com{iframe_src}"
+                
                 try:
                     player_html = await fetch_html(iframe_src)
+                    
+                    # Try to find MP4
                     m = re.search(r'file\s*:\s*["\'](https?://[^"\']+\.mp4[^"\']*)["\']', player_html)
                     if m:
                         video_url = m.group(1)
+                    
+                    # Try to find HLS
+                    # src: "m3u8_11473421.m3u8?hash=177332&time=177332"
+                    m_hls = re.search(r'src\s*:\s*["\']([^"\']+\.m3u8[^"\']*)["\']', player_html)
+                    if m_hls:
+                        hls_val = m_hls.group(1)
+                        if not hls_val.startswith('http'):
+                            from urllib.parse import urljoin
+                            hls_url = urljoin(iframe_src, hls_val)
+                        else:
+                            hls_url = hls_val
                 except:
                     pass
-            
-            if not video_url and '/get_file/' in iframe_src:
-                video_url = iframe_src
-    
-    # Fallback to script extraction if needed
-    if not video_url:
+
+
+    if not video_url and not hls_url:
         scripts = soup.find_all('script')
         for script in scripts:
             content = script.string or ""
@@ -95,6 +110,13 @@ async def scrape(url: str) -> dict:
             m = re.search(r'file\s*:\s*["\'](https?://[^"\']+\.mp4[^"\']*)["\']', content)
             if m:
                 video_url = m.group(1)
+                break
+            
+            m_hls = re.search(r'src\s*:\s*["\']([^"\']+\.m3u8[^"\']*)["\']', content)
+            if m_hls:
+                hls_url = m_hls.group(1)
+                if not hls_url.startswith('http'):
+                     hls_url = f"https://brazzpw.com/player/{hls_url}"
                 break
 
     return {
@@ -106,9 +128,9 @@ async def scrape(url: str) -> dict:
         "uploader_name": "BrazzPW",
         "video": {
             "streams": [{"quality": "720p", "url": video_url, "format": "mp4"}] if video_url else [],
-            "hls": None,
-            "default": video_url,
-            "has_video": video_url is not None
+            "hls": hls_url,
+            "default": video_url or hls_url,
+            "has_video": video_url is not None or hls_url is not None
         }
     }
 
