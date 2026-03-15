@@ -243,6 +243,7 @@ EXPLORE_SOURCES = [
         searchUrlTemplate="https://watcherotic.com/search/{query}/",
         sourceId="watcherotic",
         disable=False,
+        pageSize=100,
     ),
 ]
 
