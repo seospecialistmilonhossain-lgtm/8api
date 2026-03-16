@@ -76,12 +76,13 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
     # Extract embedded player URLs (iframes)
     embed_urls = []
     # Look for tab content with player links
-    for a_tag in soup.select(".su-spoiler-content a[href], .entry-content a[href]"):
+    for a_tag in soup.select(".su-spoiler-content a[href], .entry-content a[href], .Rtable1 a[href]"):
         href = a_tag.get("href", "")
         text = _text(a_tag) or ""
         # Common embed hosts
         embed_hosts = ["dood", "doply", "vidnest", "player4me", "upns", "voe.sx",
-                       "embedseek", "seekplayer", "mixdrop", "easyvidplayer", "rpmplay"]
+                       "embedseek", "seekplayer", "mixdrop", "easyvidplayer", "rpmplay",
+                       "luluvid", "streamtape", "frdl", "hxfile", "xshotcok"]
         if any(h in href.lower() for h in embed_hosts):
             embed_urls.append({
                 "url": href,
