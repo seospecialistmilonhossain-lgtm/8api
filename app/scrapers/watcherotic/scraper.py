@@ -38,6 +38,21 @@ async def scrape(url: str) -> dict:
     if meta_img:
         thumbnail = meta_img.get('content', '')
     
+    if not thumbnail:
+        # Fallback to finding the first large image or video poster
+        video_el = soup.find('video')
+        if video_el and video_el.get('poster'):
+            thumbnail = video_el.get('poster')
+        else:
+            img_el = soup.select_one('.video-player img, #player img')
+            if img_el:
+                thumbnail = img_el.get('src') or img_el.get('data-src')
+
+    if thumbnail and thumbnail.startswith('//'):
+        thumbnail = f"https:{thumbnail}"
+    elif thumbnail and not thumbnail.startswith('http'):
+        thumbnail = f"https://watcherotic.com{thumbnail}"
+    
     # Extract metadata from header area
     duration = None
     views = None
@@ -123,7 +138,8 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
         if not href or '/video/' not in href: continue
         
         img_el = card.find('img')
-        thumb = img_el.get('data-src') or img_el.get('src') or img_el.get('data-webp') if img_el else ""
+        # Prioritize data-src/data-webp over src (which might be a placeholder)
+        thumb = img_el.get('data-src') or img_el.get('data-webp') or img_el.get('src') if img_el else ""
         if thumb and thumb.startswith('//'):
             thumb = f"https:{thumb}"
         elif thumb and not thumb.startswith('http'):
