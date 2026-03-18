@@ -1,5 +1,5 @@
 $source = 'C:\Users\Google11\Desktop\apphub3\backend'
-$destination = 'C:\Users\Google11\Desktop\apphub3\backend_4.0.zip'
+$destination = 'C:\Users\Google11\Desktop\apphub3\backend_5.0_stable.zip'
 if (Test-Path $destination) { Remove-Item $destination }
 Get-ChildItem -Path $source -Recurse | Where-Object { 
     $_.FullName -notmatch '\\\.venv(\\|$)' -and 
