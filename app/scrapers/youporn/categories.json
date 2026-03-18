@@ -1,7 +1,27 @@
 [
     {
-        "name": "Home",
+        "name": "Recommended",
+        "url": "https://www.youporn.com/recommended/",
+        "video_count": 0
+    },
+    {
+        "name": "New Videos",
         "url": "https://www.youporn.com/browse/time/",
+        "video_count": 0
+    },
+    {
+        "name": "Most Viewed",
+        "url": "https://www.youporn.com/most_viewed/",
+        "video_count": 0
+    },
+    {
+        "name": "Most Favorited",
+        "url": "https://www.youporn.com/most_favorited/",
+        "video_count": 0
+    },
+    {
+        "name": "Top Rated",
+        "url": "https://www.youporn.com/top_rated/",
         "video_count": 0
     },
     {
