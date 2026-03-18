@@ -442,5 +442,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
             logging.debug(f"Failed to extract Youporn video from box: {e}")
             continue
             
-            
+    if ("trending" in url or "recommended" in url or "most_viewed" in url or "spankbang" in url) and page == 1:
+        items = items[6:]
+
     return items
