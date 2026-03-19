@@ -54,7 +54,7 @@ DUMMY_MEDIA_CONFIG = MediaConfigData(
                     type="vod",
                     logo_url="https://apphubx.store/apphub/media/adult.svg",
                     color_hex="#F44336",
-                    playlist_url="https://premium-iptv.com/api/adult.m3u",
+                    playlist_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/adult.m3u",
                     requires_pin=False,
                 ),
             ],
