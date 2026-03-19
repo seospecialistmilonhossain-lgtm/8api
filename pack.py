@@ -9,15 +9,16 @@ def zipdir(path, ziph):
         if '.idea' in dirs: dirs.remove('.idea')
         
         for file in files:
-            if file == 'backend_4.0.zip' or file == 'pack.py' or file == 'pack.ps1':
+            if file.endswith('.zip') or file in ['pack.py', 'pack.ps1']:
                 continue
             file_path = os.path.join(root, file)
             arcname = os.path.relpath(file_path, path)
             ziph.write(file_path, arcname)
 
 if __name__ == '__main__':
-    backend_dir = r"C:\Users\Google11\Desktop\apphub3\backend"
-    zip_path = r"C:\Users\Google11\Desktop\apphub3\backend_4.0.zip"
+    # Use relative paths so it works anywhere
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    zip_path = os.path.join(os.path.dirname(backend_dir), "cpanel_deploy.zip")
     
     if os.path.exists(zip_path):
         os.remove(zip_path)
