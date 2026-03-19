@@ -44,7 +44,7 @@ DUMMY_MEDIA_CONFIG = MediaConfigData(
                     id="BD",
                     title="Bangladesh",
                     type="live",
-                    logo_url="https://upload.wikimedia.org/wikipedia/commons/f/f9/Flag_of_Bangladesh.svg",
+                    logo_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/Flag_of_Bangladesh.svg",
                     color_hex="#4CAF50",
                     playlist_url="https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
                 ),
