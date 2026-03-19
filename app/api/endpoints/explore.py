@@ -33,7 +33,7 @@ EXPLORE_SOURCES = [
         category="free",
         isVerified=False,
         hasCategories=True,
-        searchUrlTemplate="https://xhamster.com/search/videos?q={query}",
+        searchUrlTemplate="https://xhamster.com/search/{query}",
         sourceId="xhamster",
         disable=False,
     ),
