@@ -129,58 +129,96 @@ def _normalize_duration(seconds_or_iso: Any) -> Optional[str]:
     return str(seconds_or_iso).strip() or None
 
 
+def _format_views_num(v: Optional[str]) -> Optional[str]:
+    if not v:
+        return None
+    
+    # Remove commas, spaces, and other non-essential chars
+    # Keep numbers, dots, and common suffixes
+    clean_v = re.sub(r'[^0-9KMB\.]', '', v.upper())
+    
+    # If it already has a suffix, just return it
+    if any(s in clean_v for s in ('K', 'M', 'B')):
+        return clean_v
+        
+    # Otherwise, try to shorten the raw number
+    try:
+        # Extract only digits for the conversion
+        raw_digits = re.sub(r'[^0-9]', '', clean_v)
+        if not raw_digits: return clean_v
+        
+        num = int(raw_digits)
+        if num >= 1_000_000_000:
+            val = num / 1_000_000_000
+            return f"{int(val * 10) / 10:.1f}B".replace(".0", "")
+        if num >= 1_000_000:
+            val = num / 1_000_000
+            return f"{int(val * 10) / 10:.1f}M".replace(".0", "")
+        if num >= 1_000:
+            val = num / 1_000
+            return f"{int(val * 10) / 10:.1f}K".replace(".0", "")
+        return str(num)
+    except Exception:
+        return clean_v
+
+
 def _extract_views(video_obj: Optional[dict[str, Any]], html: str, soup: BeautifulSoup) -> Optional[str]:
+    v_str = None
     if video_obj:
         for key in ("interactionCount", "viewCount", "views"):
             v = video_obj.get(key)
             if v is not None and str(v).strip():
-                return str(v).strip()
+                v_str = str(v).strip()
+                break
 
-        stats = video_obj.get("interactionStatistic")
-        if isinstance(stats, dict):
-            v = stats.get("userInteractionCount") or stats.get("interactionCount")
-            if v is not None and str(v).strip():
-                return str(v).strip()
-        elif isinstance(stats, list):
-            for s in stats:
-                if not isinstance(s, dict):
-                    continue
-                v = s.get("userInteractionCount") or s.get("interactionCount")
+        if not v_str:
+            stats = video_obj.get("interactionStatistic")
+            if isinstance(stats, dict):
+                v = stats.get("userInteractionCount") or stats.get("interactionCount")
                 if v is not None and str(v).strip():
-                    return str(v).strip()
+                    v_str = str(v).strip()
+            elif isinstance(stats, list):
+                for s in stats:
+                    if not isinstance(s, dict):
+                        continue
+                    v = s.get("userInteractionCount") or s.get("interactionCount")
+                    if v is not None and str(v).strip():
+                        v_str = str(v).strip()
+                        break
 
-    for pattern in (
-        r'"userInteractionCount"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
-        r'"interactionCount"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
-        r'"viewCount"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
-        r'"views"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
-    ):
-        m = re.search(pattern, html, re.IGNORECASE)
+    if not v_str:
+        for pattern in (
+            r'"userInteractionCount"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
+            r'"interactionCount"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
+            r'"viewCount"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
+            r'"views"\s*:\s*"?([0-9][0-9,\.]*(?:\s*[KMB])?)"?',
+        ):
+            m = re.search(pattern, html, re.IGNORECASE)
+            if m:
+                v_str = m.group(1).replace(" ", "").upper()
+                v_str = re.sub(r"[^0-9KMB\.]", "", v_str)
+                v_str = v_str.rstrip(".")
+                break
+
+    if not v_str:
+        text = soup.get_text(" ", strip=True)
+        m = re.search(r"(\d+(?:\.\d+)?)\s*([KMB])?\s*(?:views|view)\b", text, re.IGNORECASE)
         if m:
-            v = m.group(1).replace(" ", "").upper()
-            v = re.sub(r"[^0-9KMB\.]", "", v)
-            v = v.rstrip(".")
-            return v or None
+            num = m.group(1)
+            suffix = (m.group(2) or "").upper()
+            v_str = f"{num}{suffix}" if suffix else num
+        else:
+            m = re.search(r"([0-9][0-9,\.\s]*)\s*(?:views|view)", text, re.IGNORECASE)
+            if m:
+                v_str = m.group(1).strip().replace(" ", "").replace(",", "")
 
-    text = soup.get_text(" ", strip=True)
-    m = re.search(r"(\d+(?:\.\d+)?)\s*([KMB])?\s*(?:views|view)\b", text, re.IGNORECASE)
-    if m:
-        num = m.group(1)
-        suffix = (m.group(2) or "").upper()
-        return f"{num}{suffix}" if suffix else num
+    # One last attempt: search the entire HTML for window.initials views
+    if not v_str:
+        m = re.search(r'"views"\s*:\s*(\d+)', html)
+        if m:
+            v_str = m.group(1)
 
-    m = re.search(r"([0-9][0-9,\.\s]*)\s*(?:views|view)", text, re.IGNORECASE)
-    if m:
-        v = m.group(1).strip().replace(" ", "")
-        v = v.rstrip(",")
-        if v: return v
-
-    # One last attempt: search the entire HTML for window.initials views if not found in soup
-    m = re.search(r'"views"\s*:\s*(\d+)', html)
-    if m:
-        return m.group(1)
-
-    return None
+    return _format_views_num(v_str)
 
 
 def parse_page(html: str, url: str) -> dict[str, Any]:
@@ -602,7 +640,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
                     duration_str = f"{mins}:{secs:02d}"
 
             views_val = vid.get("views")
-            views_str = str(views_val) if views_val is not None else None
+            views_str = _format_views_num(str(views_val)) if views_val is not None else None
             
             landing = vid.get("landing") or {}
             uploader_name = landing.get("name") if isinstance(landing, dict) else None
@@ -661,7 +699,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
                 views_text = _text(views_el)
                 if views_text:
                     # Clean up the views text (e.g., "1.2M views" -> "1.2M")
-                    views = re.sub(r"\s*views?\s*$", "", views_text, flags=re.IGNORECASE).strip()
+                    views = _format_views_num(views_text)
             
             if not views:
                 # Fallback: search for text pattern in the entire card text
@@ -670,7 +708,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
                 if m:
                     num = m.group(1)
                     suffix = (m.group(2) or "").upper()
-                    views = f"{num}{suffix}" if suffix else num
+                    views = _format_views_num(f"{num}{suffix}" if suffix else num)
     
             # Extract uploader name with avatar
             uploader_name = None
