@@ -1,10 +1,10 @@
 # AppHub Version Configuration
 # Update this file when you release a new version of AppHub
 
-VERSION = "2.0.0"
-BUILD_NUMBER = 2
+VERSION = "6.0.0"
+BUILD_NUMBER = 6
 MIN_SUPPORTED_BUILD = 1  # Users with build < 1 will be forced to update
-RELEASE_DATE = "2026-03-02T19:00:00Z"
+RELEASE_DATE = "2026-03-27T19:00:00Z"
 
 # File Information
 DOWNLOAD_URLS = {
