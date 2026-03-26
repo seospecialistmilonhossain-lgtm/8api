@@ -431,6 +431,7 @@ async def get_apphub_version():
         "isMandatory": apphub_version.IS_MANDATORY,
         "sizeBytes": apphub_version.SIZE_BYTES,
         "downloadSizes": getattr(apphub_version, "DOWNLOAD_SIZES", {}),
+        "telegramChannel": getattr(apphub_version, "TELEGRAM_CHANNEL", ""),
     }
 
 

@@ -28,6 +28,9 @@ SIZE_BYTES = DOWNLOAD_SIZES["universal"]
 # Update Enforcement
 IS_MANDATORY = True  # If True, prompts an update regardless of MIN_SUPPORTED_BUILD
 
+# Telegram Support
+TELEGRAM_CHANNEL = "https://t.me/+IDEuHZyD9lc5Y2Jl"
+
 # Changelog Details
 CHANGELOG_TITLE = "🎉 What's New in v6.0.0"
 CHANGELOG = """
