@@ -26,7 +26,7 @@ APK_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  #
 SIZE_BYTES = DOWNLOAD_SIZES["universal"]
 
 # Update Enforcement
-IS_MANDATORY = True  # If True, prompts an update regardless of MIN_SUPPORTED_BUILD
+IS_MANDATORY = False  # If True, prompts an update regardless of MIN_SUPPORTED_BUILD
 
 # Telegram Support
 TELEGRAM_CHANNEL = "https://t.me/+IDEuHZyD9lc5Y2Jl"
