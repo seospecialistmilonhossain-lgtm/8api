@@ -8,45 +8,5 @@
         "id": "latest-episodes",
         "name": "Latest Episodes",
         "url": "https://haho.moe/episode?s=rel-d"
-    },
-    {
-        "id": "trending",
-        "name": "Trending",
-        "url": "https://haho.moe/episode?s=vac-d"
-    },
-    {
-        "id": "fzbv2fbz",
-        "name": "3D CG animation",
-        "url": "https://haho.moe/genre/fzbv2fbz"
-    },
-    {
-        "id": "zdwxopnb",
-        "name": "Action",
-        "url": "https://haho.moe/genre/zdwxopnb"
-    },
-    {
-        "id": "ukgtxrki",
-        "name": "Adventure",
-        "url": "https://haho.moe/genre/ukgtxrki"
-    },
-    {
-        "id": "5wqtovj0",
-        "name": "Ahegao",
-        "url": "https://haho.moe/genre/5wqtovj0"
-    },
-    {
-        "id": "yuri",
-        "name": "Yuri",
-        "url": "https://haho.moe/search?q=genre:yuri"
-    },
-    {
-        "id": "yaoi",
-        "name": "Yaoi",
-        "url": "https://haho.moe/search?q=genre:yaoi"
-    },
-    {
-        "id": "uncensored",
-        "name": "Uncensored",
-        "url": "https://haho.moe/search?q=censorship:uncensored"
     }
 ]
