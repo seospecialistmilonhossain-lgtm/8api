@@ -316,7 +316,7 @@ async def global_trending_endpoint(
 from app.services.video_streaming import get_video_info, get_stream_url
 from fastapi import Request
 
-@api_v1_router.get("/videos/info", tags=["Streaming"])
+@api_v1_router.get("/videos/info", response_model=ScrapeResponse, response_model_exclude_none=True, tags=["Streaming"])
 async def video_info_endpoint(request: Request, url: str = Query(..., description="Video page URL")):
     from app.config.settings import settings
     api_base = settings.BASE_URL or str(request.base_url)
@@ -327,7 +327,7 @@ async def video_info_endpoint(request: Request, url: str = Query(..., descriptio
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch video info: {str(e)}")
 
-@api_v1_router.get("/videos/stream", tags=["Streaming"])
+@api_v1_router.get("/videos/stream", response_model_exclude_none=True, tags=["Streaming"])
 async def direct_stream_endpoint(
     request: Request,
     url: str = Query(..., description="Video page URL"),
@@ -343,7 +343,7 @@ async def direct_stream_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to fetch stream URL: {str(e)}")
 
 
-@api_v1_router.get("/videos/related", response_model=list[ListItem], tags=["Videos"])
+@api_v1_router.get("/videos/related", response_model=list[ListItem], response_model_exclude_none=True, tags=["Videos"])
 async def related_videos_endpoint(request: Request, url: str = Query(..., description="Video page URL")):
     """
     Returns related videos (episodes) for a given video URL.
