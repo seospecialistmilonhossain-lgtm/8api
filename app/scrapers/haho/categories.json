@@ -1,0 +1,52 @@
+[
+    {
+        "id": "latest-anime",
+        "label": "Latest Anime",
+        "url": "https://haho.moe/anime?s=rel-d"
+    },
+    {
+        "id": "latest-episodes",
+        "label": "Latest Episodes",
+        "url": "https://haho.moe/episode?s=rel-d"
+    },
+    {
+        "id": "trending",
+        "label": "Trending",
+        "url": "https://haho.moe/episode?s=vac-d"
+    },
+    {
+        "id": "fzbv2fbz",
+        "label": "3D CG animation",
+        "url": "https://haho.moe/genre/fzbv2fbz"
+    },
+    {
+        "id": "zdwxopnb",
+        "label": "Action",
+        "url": "https://haho.moe/genre/zdwxopnb"
+    },
+    {
+        "id": "ukgtxrki",
+        "label": "Adventure",
+        "url": "https://haho.moe/genre/ukgtxrki"
+    },
+    {
+        "id": "5wqtovj0",
+        "label": "Ahegao",
+        "url": "https://haho.moe/genre/5wqtovj0"
+    },
+    {
+        "id": "yuri",
+        "label": "Yuri",
+        "url": "https://haho.moe/search?q=genre:yuri"
+    },
+    {
+        "id": "yaoi",
+        "label": "Yaoi",
+        "url": "https://haho.moe/search?q=genre:yaoi"
+    },
+    {
+        "id": "uncensored",
+        "label": "Uncensored",
+        "url": "https://haho.moe/search?q=censorship:uncensored"
+    }
+]

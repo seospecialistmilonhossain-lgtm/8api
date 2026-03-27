@@ -260,6 +260,19 @@ EXPLORE_SOURCES = [
         disable=False,
         pageSize=35,
     ),
+    ExploreSourceResponse(
+        baseUrl="https://haho.moe/",
+        nickname="Haho",
+        favicon="https://haho.moe/favicon.ico",
+        accentColor="#FBC02D",
+        category="hentai",
+        isVerified=False,
+        hasCategories=True,
+        searchUrlTemplate="https://haho.moe/search?q={query}",
+        sourceId="haho",
+        disable=False,
+        pageSize=36,
+    ),
 ]
 
 EXPLORE_CONFIG = ExploreConfigData(

@@ -31,7 +31,7 @@ from app.api.endpoints import recommendations, hls, media, explore, thumbnails
 from fastapi import APIRouter
 
 # Scrapers & Models
-from app.scrapers import masa49, xhamster, xnxx, xvideos, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video
+from app.scrapers import masa49, xhamster, xnxx, xvideos, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho
 from app.models.schemas import ScrapeResponse, ListItem, CategoryItem, ScrapeRequest, ListRequest
 
 logging.basicConfig(level=logging.INFO)
@@ -112,6 +112,7 @@ async def _scrape_dispatch(url: str, host: str) -> dict[str, object]:
     if gosexpod.can_handle(host): return await gosexpod.scrape(url)
     if watcherotic.can_handle(host): return await watcherotic.scrape(url)
     if rule34video.can_handle(host): return await rule34video.scrape(url)
+    if haho.can_handle(host): return await haho.scrape(url)
     raise HTTPException(status_code=400, detail="Unsupported host")
 
 async def _list_dispatch(base_url: str, host: str, page: int, limit: int) -> list[dict[str, object]]:
@@ -135,6 +136,7 @@ async def _list_dispatch(base_url: str, host: str, page: int, limit: int) -> lis
     if gosexpod.can_handle(host): return await gosexpod.list_videos(base_url=base_url, page=page, limit=limit)
     if watcherotic.can_handle(host): return await watcherotic.list_videos(base_url=base_url, page=page, limit=limit)
     if rule34video.can_handle(host): return await rule34video.list_videos(base_url=base_url, page=page, limit=limit)
+    if haho.can_handle(host): return await haho.list_videos(base_url=base_url, page=page, limit=limit)
     raise HTTPException(status_code=400, detail="Unsupported host")
 
 async def _crawl_dispatch(base_url: str, host: str, start_page: int, max_pages: int, per_page_limit: int, max_items: int) -> list[dict[str, object]]:
@@ -269,6 +271,7 @@ async def get_categories(source: str) -> list[CategoryItem]:
         if s == "gosexpod": return [CategoryItem(**c) for c in gosexpod.get_categories()]
         if s == "watcherotic": return [CategoryItem(**c) for c in watcherotic.get_categories()]
         if s == "rule34video": return [CategoryItem(**c) for c in rule34video.get_categories()]
+        if s == "haho": return [CategoryItem(**c) for c in haho.get_categories()]
         raise HTTPException(status_code=400, detail="Unknown source")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load categories: {str(e)}")
