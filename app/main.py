@@ -348,11 +348,11 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     """
     Returns related videos (episodes) for a given video URL.
     """
-    from app.services.cache import cache
+    from app.core import cache
     
     # Check cache first
     cache_key = f"related_videos:{url}"
-    cached_data = cache.get(cache_key)
+    cached_data = await cache.get(cache_key)
     if cached_data:
         return cached_data
 
@@ -367,7 +367,7 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
         
         # Cache the result for 1 hour (3600 seconds) if it's not empty
         if result:
-            cache.set(cache_key, result, ttl=3600)
+            await cache.set(cache_key, result, ttl_seconds=3600)
             
         return result
     except HTTPException:
