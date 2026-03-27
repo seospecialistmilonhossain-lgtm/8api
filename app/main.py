@@ -353,12 +353,15 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     # Normalize URL to base series URL for better cache sharing across episodes
     import re
     normalized_url = url
-    if "haho.moe/anime/" in url:
-        base_match = re.search(r"(https?://haho\.moe/anime/[^/]+)", url)
+    series_id = None
+    is_haho = "haho.moe/anime/" in url
+    if is_haho:
+        base_match = re.search(r"https?://haho\.moe/anime/([^/]+)", url)
         if base_match:
-            normalized_url = base_match.group(1)
+            series_id = base_match.group(1)
+            normalized_url = f"https://haho.moe/anime/{series_id}"
             
-    # Check cache first
+    # Check cache first (shared key for all episodes of the same series)
     cache_key = f"related_videos:{normalized_url}"
     cached_data = await cache.get(cache_key)
     if cached_data:
@@ -367,9 +370,17 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     from app.config.settings import settings
     api_base = settings.BASE_URL or str(request.base_url)
     try:
-        from app.services.video_streaming import get_video_info
-        info = await get_video_info(url, api_base_url=api_base)
-        related = info.get("related_videos", [])
+        related = []
+        
+        # Fast path: for Haho, call the lightweight get_episode_list directly
+        # (1 network fetch vs. 2 in the full get_video_info path)
+        if is_haho and series_id:
+            from app.scrapers.haho.scraper import get_episode_list
+            related = await get_episode_list(series_id)
+        else:
+            from app.services.video_streaming import get_video_info
+            info = await get_video_info(url, api_base_url=api_base)
+            related = info.get("related_videos", [])
         
         result = [ListItem(**it).model_dump(exclude_none=True) for it in related]
         

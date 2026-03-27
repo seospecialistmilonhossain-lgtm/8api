@@ -347,6 +347,80 @@ async def scrape(url: str) -> dict[str, Any]:
         "related_videos": related_videos
     }
 
+async def get_episode_list(series_id: str) -> list[dict[str, Any]]:
+    """
+    Lightweight function to fetch ONLY the episode list for a Haho series.
+    Used by the /videos/related endpoint to avoid a full double-page scrape.
+    Fetches only the base series page and extracts all a.film-grain episode cards.
+    """
+    series_url = f"https://haho.moe/anime/{series_id}"
+    try:
+        html = await fetch_html(series_url)
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(html, "lxml")
+    episodes = []
+
+    for ep_a in soup.select('a.film-grain'):
+        try:
+            ep_href = ep_a.get("href", "")
+            if not ep_href:
+                continue
+            if ep_href.startswith("/"):
+                ep_href = "https://haho.moe" + ep_href
+
+            # Title
+            t_series = ep_a.select_one(".overlay .title")
+            t_ep = ep_a.select_one(".overlay .episode-title")
+            ep_slug = ep_a.select_one(".episode-slug")
+
+            ep_title_parts = []
+            if t_series:
+                t_text = t_series.get_text(strip=True)
+                if t_text and t_text.lower() != "no title":
+                    ep_title_parts.append(t_text)
+            if t_ep:
+                ep_text = t_ep.get_text(strip=True)
+                if ep_text and ep_text.lower() != "no title":
+                    ep_title_parts.append(ep_text)
+            if not ep_title_parts and ep_slug:
+                slug_text = ep_slug.get_text(strip=True)
+                if slug_text:
+                    ep_title_parts.append(slug_text)
+
+            ep_title = " - ".join(ep_title_parts) or "Episode"
+
+            # Thumbnail
+            ep_img = ep_a.select_one("img.image")
+            ep_thumb = None
+            if ep_img:
+                ep_thumb = ep_img.get("src") or ep_img.get("data-src") or ep_img.get("data-original")
+                if ep_thumb:
+                    if ep_thumb.startswith("//"):
+                        ep_thumb = "https:" + ep_thumb
+                    elif ep_thumb.startswith("/") and not ep_thumb.startswith("//"):
+                        ep_thumb = "https://haho.moe" + ep_thumb
+
+            # Views
+            ep_views = "0"
+            v_el = ep_a.select_one(".top-overlay.views")
+            if v_el:
+                ep_views = (v_el.get("title") or "").replace(",", "") or v_el.get_text(strip=True).upper().replace("VIEWS", "").strip()
+
+            episodes.append({
+                "url": ep_href,
+                "title": ep_title.strip(),
+                "thumbnail_url": ep_thumb,
+                "views": ep_views,
+                "uploader_name": "Haho"
+            })
+        except Exception:
+            continue
+
+    return episodes
+
+
 async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dict[str, Any]]:
     url = base_url
     if page > 1:
