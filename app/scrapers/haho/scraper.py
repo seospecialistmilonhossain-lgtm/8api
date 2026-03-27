@@ -260,8 +260,25 @@ async def scrape(url: str) -> dict[str, Any]:
     # Extract Related Videos / Episodes
     related_videos = []
     
+    # Check if the URL points to a specific episode (e.g. /anime/mx1d9guh/1)
+    is_episode_url = bool(re.search(r"https?://haho\.moe/anime/[^/]+/[^/]+", url))
+    
+    if is_episode or is_episode_url:
+        # If we are on an episode page, the episode list might not be full or structured the same way.
+        # Fetch the main series page to reliably get all related episodes.
+        base_match = re.search(r"(https?://haho\.moe/anime/[^/]+)", url)
+        if base_match:
+            series_url = base_match.group(1)
+            try:
+                series_html = await fetch_html(series_url)
+                if series_html:
+                    soup = BeautifulSoup(series_html, "lxml")
+                    is_series = True
+            except Exception:
+                pass
+
     if is_series:
-        # If it's a series page or an episode page, find all episodes in the "Episodes" section
+        # If it's a series page (or we just loaded the series page), find all episodes in the "Episodes" section
         for ep_a in soup.select('a.film-grain'):
             try:
                 ep_href = ep_a.get("href", "")
