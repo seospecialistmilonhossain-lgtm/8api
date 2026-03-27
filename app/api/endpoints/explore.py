@@ -263,7 +263,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://haho.moe/",
         nickname="Haho",
-        favicon="https://haho.moe/favicon.ico",
+        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/haho.ico",
         accentColor="#FBC02D",
         category="hentai",
         isVerified=False,
