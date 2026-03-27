@@ -348,13 +348,28 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     """
     Returns related videos (episodes) for a given video URL.
     """
+    from app.services.cache import cache
+    
+    # Check cache first
+    cache_key = f"related_videos:{url}"
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return cached_data
+
     from app.config.settings import settings
     api_base = settings.BASE_URL or str(request.base_url)
     try:
         from app.services.video_streaming import get_video_info
         info = await get_video_info(url, api_base_url=api_base)
         related = info.get("related_videos", [])
-        return [ListItem(**it) for it in related]
+        
+        result = [ListItem(**it).model_dump(exclude_none=True) for it in related]
+        
+        # Cache the result for 1 hour (3600 seconds) if it's not empty
+        if result:
+            cache.set(cache_key, result, ttl=3600)
+            
+        return result
     except HTTPException:
         raise
     except Exception as e:
