@@ -30,5 +30,6 @@ from . import pornhat
 from . import brazzpw
 from . import gosexpod
 from . import watcherotic
+from . import rule34video
 
-__all__ = ['xnxx', 'xhamster', 'xvideos', 'masa49', 'pornhub', 'youporn', 'redtube', 'beeg', 'spankbang', 'fapnut', 'pornxp', 'hqporner', 'xxxparodyhd', 'pornwex', 'tube8', 'pornhat', 'brazzpw', 'gosexpod', 'watcherotic']
+__all__ = ['xnxx', 'xhamster', 'xvideos', 'masa49', 'pornhub', 'youporn', 'redtube', 'beeg', 'spankbang', 'fapnut', 'pornxp', 'hqporner', 'xxxparodyhd', 'pornwex', 'tube8', 'pornhat', 'brazzpw', 'gosexpod', 'watcherotic', 'rule34video']
