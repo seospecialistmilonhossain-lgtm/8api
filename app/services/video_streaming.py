@@ -128,10 +128,6 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
                 should_proxy = True
                 referer = "https://www.gosexpod.com/"
             
-            # rule34video CDN (boomio-cdn.com)
-            if "boomio-cdn.com" in stream_url:
-                should_proxy = True
-                referer = "https://rule34video.com/"
                 
             if should_proxy:
                 encoded_url = quote(stream_url)
@@ -278,9 +274,6 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
          should_proxy = True
          referer = "https://brazzpw.com/"
          
-    if "boomio-cdn.com" in stream_url:
-         should_proxy = True
-         referer = "https://rule34video.com/"
          
     if should_proxy:
             from urllib.parse import quote
