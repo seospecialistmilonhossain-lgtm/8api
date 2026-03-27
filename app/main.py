@@ -350,8 +350,16 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     """
     from app.core import cache
     
+    # Normalize URL to base series URL for better cache sharing across episodes
+    import re
+    normalized_url = url
+    if "haho.moe/anime/" in url:
+        base_match = re.search(r"(https?://haho\.moe/anime/[^/]+)", url)
+        if base_match:
+            normalized_url = base_match.group(1)
+            
     # Check cache first
-    cache_key = f"related_videos:{url}"
+    cache_key = f"related_videos:{normalized_url}"
     cached_data = await cache.get(cache_key)
     if cached_data:
         return cached_data
