@@ -268,7 +268,7 @@ EXPLORE_SOURCES = [
         category="hentai",
         isVerified=False,
         hasCategories=True,
-        searchUrlTemplate="https://haho.moe/search?q={query}",
+        searchUrlTemplate="https://haho.moe/anime?q={query}",
         sourceId="haho",
         disable=False,
         pageSize=36,

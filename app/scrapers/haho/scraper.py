@@ -424,8 +424,11 @@ async def get_episode_list(series_id: str) -> list[dict[str, Any]]:
 async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dict[str, Any]]:
     url = base_url
     if page > 1:
-        sep = "&" if "?" in base_url else "?"
-        url = f"{base_url}{sep}page={page}"
+        if "page=" in base_url:
+            url = re.sub(r'([?&])page=\d+', fr'\1page={page}', base_url)
+        else:
+            sep = "&" if "?" in base_url else "?"
+            url = f"{base_url}{sep}page={page}"
 
     try:
         html = await fetch_html(url)

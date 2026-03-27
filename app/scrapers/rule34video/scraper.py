@@ -154,15 +154,24 @@ async def scrape(url: str) -> dict[str, Any]:
     return await parse_page(html, url)
 
 async def _list_generic(base_url: str, page: int = 1) -> list[dict[str, Any]]:
-    root = base_url if base_url.endswith("/") else base_url + "/"
+    # Only add trailing slash if no query string is present
+    if "?" in base_url:
+        root = base_url
+    else:
+        root = base_url if base_url.endswith("/") else base_url + "/"
 
     candidates = []
     if page <= 1:
         candidates.append(root)
     else:
-        # Rule34Video usually uses /page/ format for most sections
+        # Rule34Video Home page (Newest) uses /latest-updates/N/ for pagination
+        if root == "https://rule34video.com/":
+            candidates.append(f"https://rule34video.com/latest-updates/{page}/")
+        
+        # Most sections (categories, search, models) use /path/N/
         path = root.rstrip('/')
         candidates.append(f"{path}/{page}/")
+        
         # Fallback to query param
         sep = "&" if "?" in root else "?"
         candidates.append(f"{root}{sep}page={page}")
