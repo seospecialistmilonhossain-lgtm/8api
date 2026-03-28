@@ -26,8 +26,9 @@ async def thumbnail_proxy(
     is_pornhub = any(x in url_lower for x in ["phncdn.com", "pornhub.com"])
     is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
     is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
+    is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io"])
     
-    if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8):
+    if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8 or is_hanime):
         raise HTTPException(status_code=403, detail="Only allowed domains are supported")
         
     if (is_youporn or is_pornhub or is_redtube or is_tube8) and "/plain/" not in url_lower:
@@ -54,6 +55,8 @@ async def thumbnail_proxy(
             headers["Referer"] = "https://www.redtube.com/"
         elif is_tube8:
             headers["Referer"] = "https://www.tube8.com/"
+        elif is_hanime:
+            headers["Referer"] = "https://hanime.tv/"
 
     try:
         # IMPORTANT: Create a fresh session per request.
@@ -101,8 +104,9 @@ def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
     is_pornhub = any(x in url_lower for x in ["phncdn.com", "pornhub.com"])
     is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
     is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
+    is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io"])
     
-    if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8):
+    if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8 or is_hanime):
         return url
         
     if is_youporn or is_pornhub or is_redtube or is_tube8:
