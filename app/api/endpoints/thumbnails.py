@@ -26,7 +26,7 @@ async def thumbnail_proxy(
     is_pornhub = any(x in url_lower for x in ["phncdn.com", "pornhub.com"])
     is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
     is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
-    is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io"])
+    is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io", "hanime-cdn.com", "hb01.io", "hb02.io"])
     
     if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8 or is_hanime):
         raise HTTPException(status_code=403, detail="Only allowed domains are supported")
@@ -104,7 +104,7 @@ def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
     is_pornhub = any(x in url_lower for x in ["phncdn.com", "pornhub.com"])
     is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
     is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
-    is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io"])
+    is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io", "hanime-cdn.com", "hb01.io", "hb02.io"])
     
     if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8 or is_hanime):
         return url
