@@ -464,15 +464,14 @@ async def get_notifications():
             title="Welcome to AppHub",
             message="Thank you for using our app! Stay tuned for more features.",
             type="info",
-            created_at=datetime.now()
+            created_at=datetime(2026, 3, 20)
         ),
         NotificationItem(
             id="2",
             title="AppHub 6.0 Update Released",
-            message="Check out the latest update with new features and improvements!",
+            message="Check out the latest update with new features and improvements! available on appteka store and official telegram channel",
             type="update",
-            created_at=datetime(2026, 3, 30),
-            link="https://t.me/AppHub2"
+            created_at=datetime(2026, 3, 30)
         ),
     ]
     return NotificationResponse(
