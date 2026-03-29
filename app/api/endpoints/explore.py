@@ -286,6 +286,19 @@ EXPLORE_SOURCES = [
         disable=False,
         pageSize=100,
     ),
+    ExploreSourceResponse(
+        baseUrl="https://rou.video/",
+        nickname="Rou.video",
+        favicon="https://rou.video/favicon.ico",
+        accentColor="#E91E63",
+        category="porn",
+        isVerified=False,
+        hasCategories=True,
+        searchUrlTemplate="https://rou.video/search?q={query}",
+        sourceId="rouvideo",
+        disable=False,
+        pageSize=24,
+    ),
 ]
 
 EXPLORE_CONFIG = ExploreConfigData(
