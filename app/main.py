@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import starlette.exceptions
@@ -284,7 +284,6 @@ async def get_categories(source: str) -> list[CategoryItem]:
 
 # --- Global Search & Trending (Pro Features) ---
 from app.services.global_search import global_search as _global_search, global_trending
-from fastapi import Query
 
 @api_v1_router.get("/search/global", tags=["Search"])
 async def global_search_endpoint(
@@ -320,7 +319,6 @@ async def global_trending_endpoint(
 
 # --- Video Streaming Info ---
 from app.services.video_streaming import get_video_info, get_stream_url
-from fastapi import Request
 
 @api_v1_router.get("/videos/info", response_model=ScrapeResponse, response_model_exclude_none=True, tags=["Streaming"])
 async def video_info_endpoint(request: Request, url: str = Query(..., description="Video page URL")):
@@ -467,7 +465,15 @@ async def get_notifications():
             message="Thank you for using our app! Stay tuned for more features.",
             type="info",
             created_at=datetime.now()
-        )
+        ),
+        NotificationItem(
+            id="2",
+            title="AppHub 6.0 Update Released",
+            message="Check out the latest update with new features and improvements!",
+            type="update",
+            created_at=datetime(2026, 3, 30),
+            link="https://t.me/AppHub2"
+        ),
     ]
     return NotificationResponse(
         notifications=sample_notifications,
