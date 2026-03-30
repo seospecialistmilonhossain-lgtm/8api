@@ -1,18 +1,18 @@
 # AppHub Version Configuration
 # Update this file when you release a new version of AppHub
 
-VERSION = "6.0.0"
+VERSION = "7.0.0"
 BUILD_NUMBER = 6
 MIN_SUPPORTED_BUILD = 1  # Users with build < 1 will be forced to update
 RELEASE_DATE = "2026-03-27"
 
 # File Information
 DOWNLOAD_URLS = {
-    "arm64-v8a": "http://apphubx.store/apphub/app-arm64-v8a-release.apk",
+    "arm64-v8a": "",
     "armeabi-v7a": "",
     "x86": "",
     "x86_64": "",
-    "universal": "http://apphubx.store/apphub/app-arm64-v8a-release.apk"
+    "universal": ""
 }
 DOWNLOAD_SIZES = {
     "arm64-v8a": 28500000,
