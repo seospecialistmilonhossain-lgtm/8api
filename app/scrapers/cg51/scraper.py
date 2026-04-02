@@ -18,6 +18,152 @@ _HOST_MARKERS = (
 
 _BANNER_RE = re.compile(r"loadBannerDirect\s*\(\s*['\"]([^'\"]+)['\"]")
 
+# og/twitter/json-ld often point at site logo, not the post cover
+_THUMB_SKIP_SUBSTR = (
+    "logo-2.png",
+    "mirages/images/logo",
+    "/usr/themes/mirages",
+    "favicon",
+    "/usr/plugins/tbxw/zw.png",
+    "themes/mirages/images/51cg.png",
+    "avatar.png",
+    "icon-black.png",
+    "/search/search@",
+)
+
+
+def _normalize_media_url(url: str) -> str:
+    u = (url or "").strip()
+    if u.startswith("//"):
+        u = "https:" + u
+    if not u.startswith("http"):
+        return u
+    m = re.match(r"(https?://[^/]+)(/.*)?$", u, re.I)
+    if not m:
+        return u
+    base, path = m.group(1), m.group(2) or ""
+    path = re.sub(r"/{2,}", "/", path)
+    return base + path
+
+
+def _is_placeholder_thumb(url: str) -> bool:
+    u = (url or "").lower()
+    return any(s in u for s in _THUMB_SKIP_SUBSTR)
+
+
+def _first_post_content_image(soup: BeautifulSoup) -> Optional[str]:
+    body = soup.select_one('.post-content[itemprop="articleBody"]')
+    if body is None:
+        body = soup.select_one("article.post .post-content")
+    if body is None:
+        return None
+    for img in body.find_all("img"):
+        for attr in ("data-xkrkllgl", "data-src", "data-original", "data-lazy-src", "src"):
+            raw = img.get(attr)
+            if not raw:
+                continue
+            v = str(raw).strip()
+            if v.startswith("//"):
+                v = "https:" + v
+            if not v.startswith("http"):
+                continue
+            v = _normalize_media_url(v)
+            if _is_placeholder_thumb(v):
+                continue
+            if v.lower().startswith("data:image"):
+                continue
+            return v
+    return None
+
+
+def _thumbnail_for_article_page(soup: BeautifulSoup) -> Optional[str]:
+    thumb = _first_post_content_image(soup)
+    if thumb:
+        return thumb
+    og = _meta(soup, prop="og:image")
+    if og and not _is_placeholder_thumb(og):
+        return _normalize_media_url(og.strip())
+    tw = _meta(soup, name="twitter:image")
+    if tw and not _is_placeholder_thumb(tw):
+        return _normalize_media_url(tw.strip())
+    for div in soup.find_all("div", class_=lambda c: c and "dplayer" in str(c).split()):
+        if _dplayer_in_footer_ad_tree(div):
+            continue
+        raw = div.get("data-config")
+        if not raw:
+            continue
+        try:
+            cfg = json.loads(html_lib.unescape(raw))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(cfg, dict) or _dplayer_cfg_is_ad(cfg):
+            continue
+        vid = cfg.get("video")
+        if isinstance(vid, dict):
+            pic = vid.get("pic") or vid.get("cover")
+            if isinstance(pic, str) and pic.startswith("http") and not _is_placeholder_thumb(pic):
+                return _normalize_media_url(pic)
+    return None
+
+
+def _tag_classes(el: Any) -> list[str]:
+    if el is None:
+        return []
+    raw = el.get("class")
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [str(x) for x in raw]
+    return str(raw).split()
+
+
+def _is_ad_listing_card(art: Any, a: Any) -> bool:
+    """Mirror slots: post-card-ads and/or tjtagmanager; not all ads set rel=sponsored."""
+    rel = a.get("rel") or []
+    if any(str(x).lower() == "sponsored" for x in rel):
+        return True
+    if "tjtagmanager" in _tag_classes(a):
+        return True
+    mask = art.select_one(".post-card-mask")
+    if "post-card-ads" in _tag_classes(mask):
+        return True
+    pc = art.select_one(".post-card")
+    if "post-card-ads" in _tag_classes(pc):
+        return True
+    return False
+
+
+def _dplayer_cfg_is_ad(cfg: dict[str, Any]) -> bool:
+    v = cfg.get("video_ads_url")
+    if v is not None and str(v).strip():
+        return True
+    v = cfg.get("ads_jump_url")
+    if v is not None and str(v).strip():
+        return True
+    return False
+
+
+def _dplayer_in_footer_ad_tree(div: Any) -> bool:
+    el: Any = div
+    for _ in range(28):
+        if el is None:
+            break
+        eid = (el.get("id") or "").lower()
+        ecls = " ".join(_tag_classes(el)).lower()
+        if any(
+            x in eid or x in ecls
+            for x in (
+                "article-bottom-ads",
+                "article-bottom-apps",
+                "adspop",
+                "application-popup",
+                "article-bottom-banner",
+            )
+        ):
+            return True
+        el = el.parent
+    return False
+
 
 def can_handle(host: str) -> bool:
     h = (host or "").lower().split(":")[0]
@@ -68,7 +214,9 @@ def _meta(soup: BeautifulSoup, *, prop: str | None = None, name: str | None = No
 def _parse_dplayer_hls_urls(soup: BeautifulSoup) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
-    for div in soup.find_all("div", class_=lambda c: c and "dplayer" in c.split()):
+    for div in soup.find_all("div", class_=lambda c: c and "dplayer" in str(c).split()):
+        if _dplayer_in_footer_ad_tree(div):
+            continue
         raw = div.get("data-config")
         if not raw:
             continue
@@ -76,13 +224,20 @@ def _parse_dplayer_hls_urls(soup: BeautifulSoup) -> list[str]:
             cfg = json.loads(html_lib.unescape(raw))
         except json.JSONDecodeError:
             continue
-        vid = cfg.get("video") if isinstance(cfg, dict) else None
+        if not isinstance(cfg, dict) or _dplayer_cfg_is_ad(cfg):
+            continue
+        vid = cfg.get("video")
         if not isinstance(vid, dict):
             continue
         u = vid.get("url")
-        if u and isinstance(u, str) and u not in seen:
+        if not u or not isinstance(u, str):
+            continue
+        u = u.strip()
+        if not u.startswith("http"):
+            continue
+        if u not in seen:
             seen.add(u)
-            out.append(u.strip())
+            out.append(u)
     return out
 
 
@@ -115,7 +270,7 @@ async def scrape(url: str) -> dict[str, Any]:
     title = title_el.get_text(strip=True) if title_el else (_meta(soup, prop="og:title") or "")
 
     description = _meta(soup, prop="og:description") or _meta(soup, name="description")
-    thumb = _meta(soup, prop="og:image")
+    thumb = _thumbnail_for_article_page(soup)
 
     author_el = soup.select_one('span[itemprop="author"]') or soup.find("meta", attrs={"name": "author"})
     uploader = None
@@ -141,7 +296,7 @@ async def scrape(url: str) -> dict[str, Any]:
             txt = script.string or script.get_text() or ""
             for m in re.finditer(r"https?://[^\s\"']+\.m3u8[^\s\"']*", txt):
                 u = m.group(0).rstrip("\\/,'\"")
-                if u and u not in seen_f:
+                if u and "zwrech.cn" in u and u not in seen_f:
                     seen_f.add(u)
                     hls_urls.append(u)
 
@@ -171,11 +326,13 @@ def _listing_page_url(base_url: str, page: int) -> str:
 
 
 def _card_thumbnail_from_article(article: Any) -> Optional[str]:
-    for script in article.find_all("script", type="text/javascript"):
+    for script in article.find_all("script"):
         txt = script.string or script.get_text() or ""
         m = _BANNER_RE.search(txt)
         if m:
-            return m.group(1).strip()
+            u = _normalize_media_url(m.group(1).strip())
+            if u.startswith("http") and not _is_placeholder_thumb(u):
+                return u
     return None
 
 
@@ -191,8 +348,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
         a = art.find("a", href=True)
         if not a:
             continue
-        rel = a.get("rel")
-        if rel and any("sponsored" == str(x).lower() for x in rel):
+        if _is_ad_listing_card(art, a):
             continue
         href = str(a["href"]).strip()
         if "/archives/" not in href:
