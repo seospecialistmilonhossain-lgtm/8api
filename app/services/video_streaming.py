@@ -24,7 +24,7 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
         }
     """
     # Import here to avoid circular dependency
-    from app.scrapers import xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo
+    from app.scrapers import xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo, cg51
     from app.api.endpoints import thumbnails
     from urllib.parse import urlparse
     
@@ -82,10 +82,12 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
         scraper_module = hanime
     elif rouvideo.can_handle(host):
         scraper_module = rouvideo
+    elif cg51.can_handle(host):
+        scraper_module = cg51
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported host: {host}. Supported: xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, urshort.live (embed), pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rou.video"
+            detail=f"Unsupported host: {host}. Supported: xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, urshort.live (embed), pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rou.video, 51cg/chigua"
         )
     
     try:
@@ -133,8 +135,12 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
             if "gosexpod.com" in stream_url and stream_url != url:
                 should_proxy = True
                 referer = "https://www.gosexpod.com/"
-            
-                
+
+            # 51吃瓜 DPlayer HLS CDN
+            if "zwrech.cn" in stream_url:
+                should_proxy = True
+                referer = "https://51cg1.com/"
+
             if should_proxy:
                 encoded_url = quote(stream_url)
                 encoded_referer = quote(referer)
@@ -279,8 +285,11 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
     if "brazzpw.com" in stream_url:
          should_proxy = True
          referer = "https://brazzpw.com/"
-         
-         
+
+    if "zwrech.cn" in stream_url:
+         should_proxy = True
+         referer = "https://51cg1.com/"
+
     if should_proxy:
             from urllib.parse import quote
             # Construct proxy URL

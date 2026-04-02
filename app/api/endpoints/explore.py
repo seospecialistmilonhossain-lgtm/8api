@@ -312,6 +312,19 @@ EXPLORE_SOURCES = [
         disable=False,
         pageSize=20,
     ),
+    ExploreSourceResponse(
+        baseUrl="https://51cg1.com/",
+        nickname="51吃瓜",
+        favicon="https://51cg1.com/favicon.ico",
+        accentColor="#FF6D00",
+        category="porn",
+        isVerified=False,
+        hasCategories=True,
+        searchUrlTemplate="",
+        sourceId="cg51",
+        disable=False,
+        pageSize=20,
+    ),
 ]
 
 EXPLORE_CONFIG = ExploreConfigData(
