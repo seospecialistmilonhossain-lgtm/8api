@@ -16,7 +16,15 @@ _HOST_MARKERS = (
     "chigua.com",
 )
 
-_BANNER_RE = re.compile(r"loadBannerDirect\s*\(\s*['\"]([^'\"]+)['\"]")
+# First argument: real cover URL (listing cards often use data: URLs in CSS instead)
+_BANNER_RE = re.compile(
+    r"loadBannerDirect\s*\(\s*['\"](https?://[^'\"]+)['\"]",
+    re.I | re.DOTALL,
+)
+_STYLE_BG_URL_RE = re.compile(
+    r"background-image\s*:\s*url\s*\(\s*(['\"]?)([^)]+?)\1\s*\)",
+    re.I,
+)
 
 # og/twitter/json-ld often point at site logo, not the post cover
 _THUMB_SKIP_SUBSTR = (
@@ -325,7 +333,32 @@ def _listing_page_url(base_url: str, page: int) -> str:
     return f"{u}/page/{page}/"
 
 
+def _url_from_blog_background_style(article: Any) -> Optional[str]:
+    """Use CSS background only when it is a normal http(s) URL, not data:image base64."""
+    for el in article.select(".blog-background"):
+        style = el.get("style") or ""
+        style = html_lib.unescape(style)
+        m = _STYLE_BG_URL_RE.search(style)
+        if not m:
+            continue
+        raw = (m.group(2) or "").strip().strip('"').strip("'")
+        if not raw or raw.lower().startswith("data:"):
+            continue
+        if raw.startswith("//"):
+            raw = "https:" + raw
+        if raw.startswith("http") and not _is_placeholder_thumb(raw):
+            return _normalize_media_url(raw)
+    return None
+
+
 def _card_thumbnail_from_article(article: Any) -> Optional[str]:
+    # Prefer loadBannerDirect first URL arg (matches real CDN URL even when CSS is base64)
+    blob = str(article)
+    for m in _BANNER_RE.finditer(blob):
+        u = _normalize_media_url(m.group(1).strip())
+        if u.startswith("http") and not _is_placeholder_thumb(u):
+            return u
+    # Individual script nodes (in case str(article) omits edge cases)
     for script in article.find_all("script"):
         txt = script.string or script.get_text() or ""
         m = _BANNER_RE.search(txt)
@@ -333,7 +366,7 @@ def _card_thumbnail_from_article(article: Any) -> Optional[str]:
             u = _normalize_media_url(m.group(1).strip())
             if u.startswith("http") and not _is_placeholder_thumb(u):
                 return u
-    return None
+    return _url_from_blog_background_style(article)
 
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dict[str, Any]]:
