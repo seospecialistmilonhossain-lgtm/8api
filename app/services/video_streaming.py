@@ -287,7 +287,7 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
          referer = "https://brazzpw.com/"
 
     if "zwrech.cn" in stream_url:
-         should_proxy = True
+         should_proxy = False
          referer = "https://51cg1.com/"
 
     if should_proxy:
