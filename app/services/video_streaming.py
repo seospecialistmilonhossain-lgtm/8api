@@ -136,11 +136,6 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
                 should_proxy = True
                 referer = "https://www.gosexpod.com/"
 
-            # 51吃瓜 DPlayer HLS CDN
-            if "zwrech.cn" in stream_url:
-                should_proxy = True
-                referer = "https://51cg1.com/"
-
             if should_proxy:
                 encoded_url = quote(stream_url)
                 encoded_referer = quote(referer)
@@ -285,10 +280,6 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
     if "brazzpw.com" in stream_url:
          should_proxy = True
          referer = "https://brazzpw.com/"
-
-    if "zwrech.cn" in stream_url:
-         should_proxy = False
-         referer = "https://51cg1.com/"
 
     if should_proxy:
             from urllib.parse import quote
