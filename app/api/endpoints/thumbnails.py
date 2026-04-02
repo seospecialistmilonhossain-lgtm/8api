@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query, Response, Request
+from os.path import basename
 from urllib.parse import quote, urlparse
 import logging
+import re
 
 import httpx
 
@@ -50,6 +52,20 @@ def _normalize_image_media_type(content: bytes, url: str, upstream: str | None) 
     if ul.endswith(".webp"):
         return "image/webp"
     return "image/jpeg"
+
+
+def _upstream_looks_like_html_or_text(content: bytes) -> bool:
+    head = content[:512].lstrip().lower()
+    return head.startswith(b"<!") or head.startswith(b"<html") or head.startswith(b"<?xml")
+
+
+def _content_disposition_inline_filename(url: str) -> str:
+    """RFC 5987 style filename for Content-Disposition: inline (helps some browsers show vs download)."""
+    name = basename((urlparse(url).path or "").strip()) or "image.jpg"
+    safe = re.sub(r"[^\w.\-]", "_", name)[:120]
+    if not safe.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+        safe = safe + ".jpg"
+    return f'inline; filename="{safe}"'
 
 @router.get("/proxy", summary="Thumbnail Proxy")
 async def thumbnail_proxy(
@@ -130,6 +146,14 @@ async def thumbnail_proxy(
                     detail=f"Upstream returned {resp.status_code}",
                 )
             content = resp.content
+            if not content:
+                raise HTTPException(status_code=502, detail="Empty upstream body")
+            if _upstream_looks_like_html_or_text(content):
+                logger.warning("Thumbnail proxy got HTML/XML instead of image for %s", url)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Upstream returned non-image content",
+                )
             raw_ct = resp.headers.get("content-type")
             content_type = _normalize_image_media_type(content, url, raw_ct)
 
@@ -140,6 +164,8 @@ async def thumbnail_proxy(
                     "Access-Control-Allow-Origin": "*",
                     "Cache-Control": "public, max-age=86400",
                     "X-Proxy-Origin": "AppHub-Thumbnail-Proxy",
+                    # Force inline display in browsers (API path + octet-stream upstream often triggers Save)
+                    "Content-Disposition": _content_disposition_inline_filename(url),
                 },
             )
 
