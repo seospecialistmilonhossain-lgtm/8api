@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query, Response, Request
 from urllib.parse import quote
 import logging
-import asyncio
-import aiohttp
+
+import httpx
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,39 +66,45 @@ async def thumbnail_proxy(
             headers["Referer"] = "https://51cg1.com/"
 
     try:
-        # IMPORTANT: Create a fresh session per request.
-        # Shared sessions from pool.py are bound to the event loop they were created in.
-        # Our custom asyncio bridge uses a new event loop per request, so the pool session
-        # becomes invalid after the first request. A per-request session is the safe fix.
-        timeout = aiohttp.ClientTimeout(total=15)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status >= 400:
-                    logger.warning(f"Thumbnail proxy upstream error {resp.status} for {url}")
-                    raise HTTPException(status_code=resp.status, detail=f"Upstream returned {resp.status}")
-                
-                content = await resp.read()
-                content_type = resp.headers.get("Content-Type", "image/jpeg")
-                
-                return Response(
-                    content=content,
-                    media_type=content_type,
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Cache-Control": "public, max-age=86400",
-                        "X-Proxy-Origin": "AppHub-Thumbnail-Proxy"
-                    }
+        # Per-request client: avoids binding an aiohttp session to the wrong event loop
+        # (see pool.py / a2wsgi); httpx matches other scrapers and resolves cleanly in the IDE.
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0),
+            follow_redirects=True,
+        ) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code >= 400:
+                logger.warning(
+                    f"Thumbnail proxy upstream error {resp.status_code} for {url}"
                 )
-                
+                raise HTTPException(
+                    status_code=resp.status_code,
+                    detail=f"Upstream returned {resp.status_code}",
+                )
+            content = resp.content
+            content_type = resp.headers.get("content-type", "image/jpeg")
+
+            return Response(
+                content=content,
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=86400",
+                    "X-Proxy-Origin": "AppHub-Thumbnail-Proxy",
+                },
+            )
+
     except HTTPException:
         raise
+    except httpx.TimeoutException as e:
+        logger.warning(f"Thumbnail Proxy timeout for {url}: {e}")
+        raise HTTPException(status_code=504, detail="Upstream timeout") from e
+    except httpx.RequestError as e:
+        logger.error(f"Thumbnail Proxy request error for {url}: {e}")
+        raise HTTPException(status_code=502, detail="Upstream connection error") from e
     except Exception as e:
-        err_str = str(e).lower()
-        if "timeout" in err_str:
-            logger.warning(f"Thumbnail Proxy timeout for {url}: {e}")
-            raise HTTPException(status_code=504, detail="Upstream timeout")
         logger.error(f"Thumbnail Proxy unexpected error for {url}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
     """Helper to wrap specific thumbnails in the proxy URL."""
