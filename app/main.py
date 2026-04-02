@@ -36,9 +36,15 @@ from app.models.schemas import ScrapeResponse, ListItem, CategoryItem, ScrapeReq
 
 logging.basicConfig(level=logging.INFO)
 
-# NOTE: Lifespan REMOVED for cPanel/Passenger compatibility.
-# a2wsgi runs ASGI lifespans synchronously, which blocks the first request.
-# Background tasks can be added back later if using a true ASGI server like uvicorn.
+
+@asynccontextmanager
+async def _app_lifespan(app: FastAPI):
+    # Startup: intentionally empty — heavy startup can block first request under a2wsgi/cPanel.
+    yield
+    # Shutdown: close pooled aiohttp session (avoids "Unclosed client session" on Uvicorn exit).
+    await pool.close()
+    await asyncio.sleep(0.25)
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -47,7 +53,8 @@ app = FastAPI(
     version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=_app_lifespan,
 )
 
 # Register exception handlers

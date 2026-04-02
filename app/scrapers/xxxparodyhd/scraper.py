@@ -11,7 +11,9 @@ from app.core import pool
 
 
 def can_handle(host: str) -> bool:
-    return "xxxparodyhd.net" in host.lower()
+    h = host.lower()
+    # Listing pages use xxxparodyhd.net; embed players often use urshort.live (and similar).
+    return "xxxparodyhd.net" in h or "urshort.live" in h
 
 
 async def fetch_html(url: str) -> str:
@@ -82,7 +84,7 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
         # Common embed hosts
         embed_hosts = ["dood", "doply", "vidnest", "player4me", "upns", "voe.sx",
                        "embedseek", "seekplayer", "mixdrop", "easyvidplayer", "rpmplay",
-                       "luluvid", "streamtape", "frdl", "hxfile", "xshotcok"]
+                       "luluvid", "streamtape", "frdl", "hxfile", "xshotcok", "urshort"]
         if any(h in href.lower() for h in embed_hosts):
             embed_urls.append({
                 "url": href,

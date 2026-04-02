@@ -85,7 +85,7 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported host: {host}. Supported: xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rou.video"
+            detail=f"Unsupported host: {host}. Supported: xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, urshort.live (embed), pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rou.video"
         )
     
     try:

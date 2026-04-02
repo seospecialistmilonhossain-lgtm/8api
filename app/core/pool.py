@@ -67,6 +67,17 @@ class ConnectionPool:
             or self._session.closed 
             or getattr(self, '_loop', None) is not current_loop
         ):
+            old_session = self._session
+            old_loop = getattr(self, '_loop', None)
+            if (
+                old_session is not None
+                and not old_session.closed
+                and old_loop is current_loop
+            ):
+                await old_session.close()
+            # If the event loop changed, the previous session belonged to another loop;
+            # do not await close() here (aiohttp requires same-loop close).
+
             # Connection pooling configuration
             connector = aiohttp.TCPConnector(
                 limit=100,  # Max 100 concurrent connections total
@@ -107,6 +118,8 @@ class ConnectionPool:
         if self._session and not self._session.closed:
             await self._session.close()
             logger.info("Closed HTTP connection pool")
+        self._session = None
+        self._loop = None
 
 
 # Global pool instance
