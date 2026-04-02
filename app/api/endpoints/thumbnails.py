@@ -1,71 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query, Response, Request
-from os.path import basename
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 import logging
-import re
 
 import httpx
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# 51cg / chigua listing covers are often on this CDN; it serves JPEG/PNG with
-# Content-Type: binary/octet-stream, which breaks inline image decode in clients.
-_CG51_THUMB_HOSTS = frozenset(
-    {
-        "pic.vugogg.cn",
-    }
-)
-
-
-def _is_cg51_thumbnail_host(url: str) -> bool:
-    try:
-        host = (urlparse(url).hostname or "").lower()
-    except Exception:
-        return False
-    return host in _CG51_THUMB_HOSTS
-
-
-def _normalize_image_media_type(content: bytes, url: str, upstream: str | None) -> str:
-    """Use magic bytes when upstream sends octet-stream or wrong type (common on S3/CloudFront)."""
-    ct = (upstream or "").split(";")[0].strip().lower()
-    if ct and ct not in (
-        "application/octet-stream",
-        "binary/octet-stream",
-        "application/binary",
-    ):
-        if ct.startswith("image/"):
-            return ct
-    if len(content) >= 3 and content[0:3] == b"\xff\xd8\xff":
-        return "image/jpeg"
-    if len(content) >= 8 and content[0:8] == b"\x89PNG\r\n\x1a\n":
-        return "image/png"
-    if len(content) >= 12 and content[0:4] == b"RIFF" and content[8:12] == b"WEBP":
-        return "image/webp"
-    if len(content) >= 6 and content[0:6] in (b"GIF87a", b"GIF89a"):
-        return "image/gif"
-    ul = (url or "").lower()
-    if ul.endswith((".jpg", ".jpeg")):
-        return "image/jpeg"
-    if ul.endswith(".png"):
-        return "image/png"
-    if ul.endswith(".webp"):
-        return "image/webp"
-    return "image/jpeg"
-
-
-def _upstream_looks_like_html_or_text(content: bytes) -> bool:
-    head = content[:512].lstrip().lower()
-    return head.startswith(b"<!") or head.startswith(b"<html") or head.startswith(b"<?xml")
-
-
-def _content_disposition_inline_filename(url: str) -> str:
-    """RFC 5987 style filename for Content-Disposition: inline (helps some browsers show vs download)."""
-    name = basename((urlparse(url).path or "").strip()) or "image.jpg"
-    safe = re.sub(r"[^\w.\-]", "_", name)[:120]
-    if not safe.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
-        safe = safe + ".jpg"
-    return f'inline; filename="{safe}"'
 
 @router.get("/proxy", summary="Thumbnail Proxy")
 async def thumbnail_proxy(
@@ -87,17 +27,8 @@ async def thumbnail_proxy(
     is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
     is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
     is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io", "hanime-cdn.com", "hb01.io", "hb02.io"])
-    is_cg51 = _is_cg51_thumbnail_host(url)
 
-    if not (
-        is_hqporner
-        or is_youporn
-        or is_pornhub
-        or is_redtube
-        or is_tube8
-        or is_hanime
-        or is_cg51
-    ):
+    if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8 or is_hanime):
         raise HTTPException(status_code=403, detail="Only allowed domains are supported")
         
     if (is_youporn or is_pornhub or is_redtube or is_tube8) and "/plain/" not in url_lower:
@@ -126,8 +57,6 @@ async def thumbnail_proxy(
             headers["Referer"] = "https://www.tube8.com/"
         elif is_hanime:
             headers["Referer"] = "https://hanime.tv/"
-        elif is_cg51:
-            headers["Referer"] = "https://51cg1.com/"
 
     try:
         # Per-request client: avoids binding a pooled session to the wrong event loop
@@ -146,16 +75,7 @@ async def thumbnail_proxy(
                     detail=f"Upstream returned {resp.status_code}",
                 )
             content = resp.content
-            if not content:
-                raise HTTPException(status_code=502, detail="Empty upstream body")
-            if _upstream_looks_like_html_or_text(content):
-                logger.warning("Thumbnail proxy got HTML/XML instead of image for %s", url)
-                raise HTTPException(
-                    status_code=502,
-                    detail="Upstream returned non-image content",
-                )
-            raw_ct = resp.headers.get("content-type")
-            content_type = _normalize_image_media_type(content, url, raw_ct)
+            content_type = resp.headers.get("content-type", "image/jpeg")
 
             return Response(
                 content=content,
@@ -164,8 +84,6 @@ async def thumbnail_proxy(
                     "Access-Control-Allow-Origin": "*",
                     "Cache-Control": "public, max-age=86400",
                     "X-Proxy-Origin": "AppHub-Thumbnail-Proxy",
-                    # Force inline display in browsers (API path + octet-stream upstream often triggers Save)
-                    "Content-Disposition": _content_disposition_inline_filename(url),
                 },
             )
 
@@ -193,17 +111,8 @@ def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
     is_redtube = any(x in url_lower for x in ["rdtcdn.com", "redtube.com"])
     is_tube8 = any(x in url_lower for x in ["t8cdn.com", "tube8.com"])
     is_hanime = any(x in url_lower for x in ["hanime.tv", "hb00.io", "hanime-cdn.com", "hb01.io", "hb02.io"])
-    is_cg51 = _is_cg51_thumbnail_host(url)
 
-    if not (
-        is_hqporner
-        or is_youporn
-        or is_pornhub
-        or is_redtube
-        or is_tube8
-        or is_hanime
-        or is_cg51
-    ):
+    if not (is_hqporner or is_youporn or is_pornhub or is_redtube or is_tube8 or is_hanime):
         return url
         
     if is_youporn or is_pornhub or is_redtube or is_tube8:
