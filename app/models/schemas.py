@@ -60,6 +60,7 @@ class ScrapeRequest(BaseModel):
         allowed_domains = [
             "xhamster.com",
             "masa49.org",
+            "masa49.com",
             "xnxx.com",
             "xvideos.com",
             "pornhub.com",
@@ -111,6 +112,7 @@ class ListRequest(BaseModel):
         allowed_domains = [
             "xhamster.com",
             "masa49.org",
+            "masa49.com",
             "xnxx.com",
             "xvideos.com",
             "pornhub.com",

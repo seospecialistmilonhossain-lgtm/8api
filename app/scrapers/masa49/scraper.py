@@ -4,13 +4,25 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, Optional
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
 
 def can_handle(host: str) -> bool:
-    return host.lower().endswith("masa49.org")
+    """
+    Accept masa49.org and masa49.com (mirror), with or without default port in netloc.
+    """
+    h = (host or "").lower()
+    if "@" in h:
+        h = h.split("@", 1)[1]
+    # hostname:port (IPv4-style netloc only)
+    if not h.startswith("[") and h.count(":") == 1:
+        name, _, maybe_port = h.partition(":")
+        if maybe_port.isdigit():
+            h = name
+    return h.endswith("masa49.org") or h.endswith("masa49.com")
 
 def get_categories() -> list[dict]:
     import os
@@ -260,7 +272,7 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
             duration = m.group(1)
 
     # ZERO-COST VIDEO EXTRACTION
-    video_data = _extract_video_streams(html, soup)
+    video_data = _extract_video_streams(html, soup, url)
 
     # Related Videos Extraction
     related_videos = []
@@ -313,70 +325,124 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
     }
 
 
-def _extract_video_streams(html: str, soup: BeautifulSoup) -> dict[str, Any]:
+def _unescape_embedded_url(raw: str) -> str:
+    """Undo JSON-style escaping often found in inline player config."""
+    return raw.replace(r"\/", "/").replace(r"\\", "\\").strip()
+
+
+def _resolve_stream_url(raw: str, page_url: str) -> Optional[str]:
+    u = _unescape_embedded_url(raw).strip()
+    if not u:
+        return None
+    if u.startswith("//"):
+        u = "https:" + u
+    if u.startswith("http"):
+        return u
+    return urljoin(page_url, u)
+
+
+def _push_stream(
+    streams: list[dict[str, Any]],
+    seen_urls: set[str],
+    absolute_url: str,
+    fmt: str,
+) -> None:
+    if not absolute_url.startswith("http") or absolute_url in seen_urls:
+        return
+    seen_urls.add(absolute_url)
+    streams.append({"quality": "default", "url": absolute_url, "format": fmt})
+
+
+def _extract_video_streams(html: str, soup: BeautifulSoup, page_url: str) -> dict[str, Any]:
     """
     Extract video streams from Masa49
-    Looks for MP4 files, JWPlayer config, or video tags
+    Looks for MP4 / HLS files, JWPlayer config, or video tags
     """
-    streams = []
-    
-    seen_urls = set()
-    
+    streams: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+
     # 1. Regex for .mp4 URLs in scripts or attributes
-    # Look for: "file": "http...mp4" or src="http...mp4"
-    mp4_matches = re.finditer(r'(?:file|src|url)["\']?\s*[:=]\s*["\'](https?://[^"\']+\.mp4)["\']', html, re.IGNORECASE)
-    
+    mp4_matches = re.finditer(
+        r'(?:file|src|url)["\']?\s*[:=]\s*["\']((?:https?:)?\\?/\\?/[^"\']+\.mp4[^"\']*)["\']',
+        html,
+        re.IGNORECASE,
+    )
     for m in mp4_matches:
-        url = m.group(1)
-        if url not in seen_urls:
-            streams.append({
-                "quality": "default", # Masa49 usually has one quality
-                "url": url,
-                "format": "mp4"
-            })
-            seen_urls.add(url)
-            
+        raw = m.group(1)
+        u = _resolve_stream_url(raw, page_url)
+        if u:
+            _push_stream(streams, seen_urls, u, "mp4")
+
+    # 1b. HLS (.m3u8) — same sites sometimes switch to HLS-only
+    for m in re.finditer(
+        r'["\']hls["\']\s*:\s*["\']((?:https?:)?\\?/\\?/[^"\']+\.m3u8[^"\']*)["\']',
+        html,
+        re.IGNORECASE,
+    ):
+        raw = m.group(1)
+        u = _resolve_stream_url(raw, page_url)
+        if u:
+            _push_stream(streams, seen_urls, u, "hls")
+
+    m3u8_loose = re.finditer(
+        r'(?:file|src|url)["\']?\s*[:=]\s*["\']((?:https?:)?\\?/\\?/[^"\']+\.m3u8[^"\']*)["\']',
+        html,
+        re.IGNORECASE,
+    )
+    for m in m3u8_loose:
+        raw = m.group(1)
+        u = _resolve_stream_url(raw, page_url)
+        if u:
+            _push_stream(streams, seen_urls, u, "hls")
+
     # 2. Look for <source> tags
     for source in soup.find_all("source"):
         src = source.get("src")
-        type_ = source.get("type")
-        if src and (src.endswith(".mp4") or (type_ and "mp4" in type_)):
-            if src not in seen_urls:
-                streams.append({
-                    "quality": "default",
-                    "url": src,
-                    "format": "mp4"
-                })
-                seen_urls.add(src)
+        type_ = (source.get("type") or "").lower()
+        if not src:
+            continue
+        resolved = _resolve_stream_url(str(src), page_url)
+        if not resolved:
+            continue
+        if resolved.endswith(".mp4") or "mp4" in type_:
+            _push_stream(streams, seen_urls, resolved, "mp4")
+        elif ".m3u8" in resolved or "mpegurl" in type_ or "hls" in type_:
+            _push_stream(streams, seen_urls, resolved, "hls")
 
-    # 3. Look for JWPlayer setup
-    # jwplayer("...").setup({ ... file: "..." ... })
+    # 3. JWPlayer setup — file or hls keys
     jw_match = re.search(r'jwplayer\s*\([^)]+\)\.setup\s*\(\s*({.+?})\s*\)', html, re.DOTALL)
     if jw_match:
         try:
-            # VERY basic JSON cleanup (JWPlayer config often not valid JSON regex)
-            # This is a best-effort fallback
             config_str = jw_match.group(1)
-            file_match = re.search(r'file\s*:\s*["\']([^"\']+\.mp4)["\']', config_str)
-            if file_match:
-                url = file_match.group(1)
-                if url not in seen_urls:
-                    streams.append({
-                        "quality": "default",
-                        "url": url,
-                        "format": "mp4"
-                    })
-                    seen_urls.add(url)
+            for pattern in (
+                r'file\s*:\s*["\']([^"\']+)["\']',
+                r'hls\s*:\s*["\']([^"\']+)["\']',
+            ):
+                for fm in re.finditer(pattern, config_str, re.IGNORECASE):
+                    raw = fm.group(1)
+                    u = _resolve_stream_url(raw, page_url)
+                    if not u:
+                        continue
+                    if ".m3u8" in u:
+                        _push_stream(streams, seen_urls, u, "hls")
+                    elif ".mp4" in u:
+                        _push_stream(streams, seen_urls, u, "mp4")
         except Exception:
             pass
 
-    default_url = streams[0]["url"] if streams else None
-    
+    # Prefer MP4 as default when both exist (simpler for some clients)
+    default_url = None
+    if streams:
+        mp4s = [s for s in streams if s.get("format") == "mp4"]
+        default_url = (mp4s[0] if mp4s else streams[0])["url"]
+
+    hls_url = next((s["url"] for s in streams if s.get("format") == "hls"), None)
+
     return {
         "streams": streams,
-        "hls": None, # Masa49 rarely uses HLS
+        "hls": hls_url,
         "default": default_url,
-        "has_video": len(streams) > 0
+        "has_video": len(streams) > 0,
     }
 
 
