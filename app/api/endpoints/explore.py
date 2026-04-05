@@ -15,14 +15,14 @@ EXPLORE_CATEGORIES = [
 # Default Explore Sources
 EXPLORE_SOURCES = [
     ExploreSourceResponse(
-        baseUrl="https://masa49.org/",
+        baseUrl="https://masa49.cam/",
         nickname="Masa",
         favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/logo%20(1).png",
         accentColor="#7C4DFF",
         category="porn",
         isVerified=False,
         hasCategories=True,
-        searchUrlTemplate="https://masa49.org/?s={query}",
+        searchUrlTemplate="https://masa49.cam/?s={query}",
         sourceId="masa",
         disable=False,
     ),

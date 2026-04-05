@@ -9,20 +9,25 @@ from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup
 
+# Known Masa front domains (same WordPress theme / scraper logic)
+_MASA_HOST_SUFFIXES = ("masa49.org", "masa49.com", "masa49.cam")
 
-def can_handle(host: str) -> bool:
-    """
-    Accept masa49.org and masa49.com (mirror), with or without default port in netloc.
-    """
+
+def _normalize_netloc_host(host: str) -> str:
     h = (host or "").lower()
     if "@" in h:
         h = h.split("@", 1)[1]
-    # hostname:port (IPv4-style netloc only)
     if not h.startswith("[") and h.count(":") == 1:
         name, _, maybe_port = h.partition(":")
         if maybe_port.isdigit():
             h = name
-    return h.endswith("masa49.org") or h.endswith("masa49.com")
+    return h
+
+
+def can_handle(host: str) -> bool:
+    """Accept masa49.org, .com, and .cam mirrors (with optional port on netloc)."""
+    h = _normalize_netloc_host(host)
+    return any(h.endswith(suffix) for suffix in _MASA_HOST_SUFFIXES)
 
 def get_categories() -> list[dict]:
     import os
