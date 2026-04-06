@@ -252,6 +252,11 @@ def _related_videos(soup: BeautifulSoup, current_slug: str) -> list[dict[str, An
             continue
         href = link.get("href") or ""
         q = parse_qs(urlparse(href).query)
+        # Oppai has multiple episode grids on the watch page (same series eps vs recommended).
+        # "More Episodes" uses `for=episode-more`; recommended uses other `for` values.
+        for_param = (q.get("for") or [""])[0].strip().lower()
+        if for_param != "episode-more":
+            continue
         slug = (q.get("e") or [None])[0]
         if not slug or slug == current_slug or slug in seen:
             continue
