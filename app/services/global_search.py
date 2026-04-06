@@ -55,7 +55,7 @@ async def global_search(
     start_time = time()
     
     # Import scraper modules
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai
     
     # Build scraper registry (until we have real registry)
     available_scrapers = {
@@ -69,7 +69,8 @@ async def global_search(
         'beeg': beeg,
         'spankbang': spankbang,
         'hqporner': hqporner,
-        'hanime': hanime
+        'hanime': hanime,
+        'oppai': oppai,
     }
     
     # Determine which sites to search
@@ -161,7 +162,8 @@ def _build_search_url(site_name: str, query: str, scraper_module) -> str:
         "beeg": f"https://beeg.com/?f={query_encoded}",
         "spankbang": f"https://spankbang.com/s/{query_encoded}/",
         "hqporner": f"https://hqporner.com/?q={query_encoded}",
-        "hanime": f"https://hanime.tv/search?q={query_encoded}"
+        "hanime": f"https://hanime.tv/search?q={query_encoded}",
+        "oppai": f"https://oppai.stream/search?t={query_encoded}",
     }
     
     return search_patterns.get(site_name)
@@ -215,7 +217,7 @@ async def global_trending(
     
     Similar to global search but uses trending pages
     """
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai
     
     available_scrapers = {
         'xhamster': (xhamster, "https://xhamster.com/trending"),
@@ -228,7 +230,8 @@ async def global_trending(
         'beeg': (beeg, "https://beeg.com/asian"),
         'spankbang': (spankbang, "https://spankbang.com/trending_videos"),
         'hqporner': (hqporner, "https://hqporner.com/top"),
-        'hanime': (hanime, "https://hanime.tv/trending")
+        'hanime': (hanime, "https://hanime.tv/trending"),
+        'oppai': (oppai, "https://oppai.stream/search?a=trending"),
     }
     
     if not sites:
