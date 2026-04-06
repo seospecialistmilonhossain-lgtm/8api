@@ -319,7 +319,8 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
         "xxxparodyhd.net" in parsed_url.netloc.lower() or
         "xparody.com" in parsed_url.netloc.lower() or 
         "pornhat.com" in parsed_url.netloc.lower() or
-        "oppai.stream" in parsed_url.netloc.lower()):
+        "oppai.stream" in parsed_url.netloc.lower() or
+        "xmoviesforyou.com" in parsed_url.netloc.lower()):
         qualities = {}
         all_streams = video_data.get("streams", [])
         

@@ -99,6 +99,17 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
     streams: list[dict[str, Any]] = []
     seen: set[str] = set()
 
+    def provider_quality(label: str, host: str) -> str:
+        t = (label or "").upper()
+        h = (host or "").lower().replace("www.", "")
+        if "STREAMTAPE" in t or "streamtape" in h:
+            return "streamtape"
+        if "MIXDROP" in t or "mixdrop" in t or "mixdrp" in h:
+            return "mixdrop"
+        if "DOOD" in t or "DOODSTREAM" in t or "dood" in h or "playmogo.com" in h:
+            return "doodstream"
+        return "embed"
+
     # Primary path: provider buttons block on detail page:
     # <div class="flex flex-wrap gap-4 mb-8"> ... <a href="https://...">STREAMTAPE</a> ...
     provider_containers = soup.select("div.flex.flex-wrap.gap-4.mb-8, div.mb-8")
@@ -128,7 +139,7 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
             seen.add(full)
             streams.append(
                 {
-                    "quality": "unknown",
+                    "quality": provider_quality(provider_label, host),
                     "url": full,
                     "format": "embed",
                     "server": provider_label or host or "external",
@@ -166,7 +177,7 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
         server = host.replace("www.", "") or "external"
         streams.append(
             {
-                "quality": "unknown",
+                "quality": provider_quality(server, host),
                 "url": full,
                 "format": "embed",
                 "server": server,
