@@ -6,17 +6,12 @@
   },
   {
     "name": "Trending",
-    "url": "https://oppai.stream/search?a=trending",
+    "url": "https://oppai.stream/search?a=trending&p=1&t=&g=&b=&s=",
     "video_count": 0
   },
   {
     "name": "Random",
     "url": "https://oppai.stream/search?a=random",
-    "video_count": 0
-  },
-  {
-    "name": "Recent",
-    "url": "https://oppai.stream/search?a=recent",
     "video_count": 0
   },
   {
