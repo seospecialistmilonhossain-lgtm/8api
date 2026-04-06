@@ -99,6 +99,43 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
     streams: list[dict[str, Any]] = []
     seen: set[str] = set()
 
+    # Primary path: provider buttons block on detail page:
+    # <div class="flex flex-wrap gap-4 mb-8"> ... <a href="https://...">STREAMTAPE</a> ...
+    provider_containers = soup.select("div.flex.flex-wrap.gap-4.mb-8, div.mb-8")
+    for container in provider_containers:
+        for a in container.select("a[href]"):
+            full = _abs_url(a.get("href"))
+            if not full or full in seen:
+                continue
+
+            p = urlparse(full)
+            host = (p.netloc or "").lower().replace("www.", "")
+            # Button label is usually provider name (STREAMTAPE/MIXDROP/DOODSTREAM)
+            provider_label = a.get_text(" ", strip=True).upper()
+
+            # Keep provider links only (external hosts or explicit stream/watch routes).
+            if can_handle(host):
+                same_site_path = (p.path or "").lower()
+                if p.fragment:
+                    continue
+                if not any(x in same_site_path for x in ("/watch", "/stream", "/go/", "/out/")):
+                    continue
+
+            # Skip obvious non-provider links in generic mb-8 blocks.
+            if can_handle(host) and not any(x in provider_label for x in ("STREAM", "DOWNLOAD")):
+                continue
+
+            seen.add(full)
+            streams.append(
+                {
+                    "quality": "unknown",
+                    "url": full,
+                    "format": "embed",
+                    "server": provider_label or host or "external",
+                }
+            )
+
+    # Fallback path: broad scan for anchors that look like stream/download providers.
     for a in soup.select("a[href]"):
         href = (a.get("href") or "").strip()
         if not href:
@@ -178,11 +215,53 @@ def _build_list_page_url(base_url: str, page: int) -> str:
 def _extract_thumb(container: BeautifulSoup | None) -> str | None:
     if not container:
         return None
-    img = container.select_one("img")
+    # Site uses modern card images; prioritize likely "cover" images over logos/ads.
+    img = container.select_one("img.object-cover") or container.select_one("img.mb-12") or container.select_one("img")
     if not img:
         return None
-    src = img.get("data-src") or img.get("data-lazy-src") or img.get("src")
-    return _abs_url(src)
+    src = (
+        img.get("data-src")
+        or img.get("data-lazy-src")
+        or img.get("data-original")
+        or img.get("data-srcset")
+        or img.get("srcset")
+        or img.get("src")
+    )
+    if not src:
+        return None
+
+    # srcset may contain multiple URLs: take the first URL token.
+    if " " in src and (".webp" in src or ".jpg" in src or ".png" in src):
+        src = src.split(",", 1)[0].strip().split(" ", 1)[0].strip()
+
+    url = _abs_url(src)
+    if not url:
+        return None
+
+    # Avoid returning site logo as thumbnail.
+    if url.rstrip("/").endswith("/logo.png"):
+        return None
+
+    return url
+
+
+def _find_card_container(anchor: Any) -> Any | None:
+    """
+    On xmoviesforyou the title <a> is often nested in a small text-only div,
+    while the thumbnail <img class="object-cover"> lives in a higher parent.
+    Walk up a few levels to find the wrapper that contains the real cover image.
+    """
+    node = anchor
+    for _ in range(18):
+        if not node:
+            break
+        parent = getattr(node, "parent", None)
+        if not parent:
+            break
+        if hasattr(parent, "select_one") and (parent.select_one("img.object-cover") or parent.select_one("img.mb-12")):
+            return parent
+        node = parent
+    return getattr(anchor, "parent", None)
 
 
 def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
@@ -197,7 +276,7 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
         seen.add(href)
 
         title = _clean_text(a.get_text(" ", strip=True)) or href.rstrip("/").split("/")[-1].replace("-", " ")
-        container = a.find_parent(["article", "li", "div"])
+        container = _find_card_container(a)
         thumb = _extract_thumb(container)
         uploader = None
         if container:
