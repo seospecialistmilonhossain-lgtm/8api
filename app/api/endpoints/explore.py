@@ -297,7 +297,7 @@ EXPLORE_SOURCES = [
         searchUrlTemplate="https://oppai.stream/search?t={query}",
         sourceId="oppai",
         disable=False,
-        pageSize=20,
+        pageSize=40,
     ),
     ExploreSourceResponse(
         baseUrl="https://rou.video/",
