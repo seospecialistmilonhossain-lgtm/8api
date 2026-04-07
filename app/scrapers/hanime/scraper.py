@@ -163,6 +163,43 @@ def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
 
     return related[:48]
 
+
+def _related_from_nuxt_state(html: str, current_slug: str) -> list[dict[str, Any]]:
+    """
+    Parse related franchise videos from `window.__NUXT__` serialized state.
+    This is a robust fallback when the rendered card markup is absent.
+    """
+    related: list[dict[str, Any]] = []
+    seen: set[str] = {current_slug}
+
+    m = re.search(
+        r"hentai_franchise_hentai_videos:\[(.*?)\],hentai_video_storyboards:",
+        html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not m:
+        return related
+    chunk = m.group(1)
+
+    # Best-effort extraction: explicit slugs and optional per-item literals.
+    for slug in re.findall(r'slug:"([^"]+)"', chunk, re.IGNORECASE):
+        slug = slug.strip()
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        related.append(
+            {
+                "url": f"https://hanime.tv/videos/hentai/{slug}",
+                "title": slug.replace("-", " ").title(),
+                "thumbnail_url": None,
+                "views": "0",
+                "upload_date": None,
+                "uploader_name": None,
+            }
+        )
+
+    return related[:48]
+
 async def scrape(url: str) -> dict[str, Any]:
     slug = _extract_slug(url)
     if not slug:
@@ -238,6 +275,8 @@ async def scrape(url: str) -> dict[str, Any]:
         try:
             html = await fetch_html(url, headers=headers)
             related_videos = _related_from_html(html, slug)
+            if not related_videos:
+                related_videos = _related_from_nuxt_state(html, slug)
         except Exception:
             # Keep scraper resilient: related remains optional metadata.
             related_videos = []
