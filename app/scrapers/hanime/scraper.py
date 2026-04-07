@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import html as html_lib
 import re
 import secrets
 from typing import Any, Optional
@@ -119,6 +120,14 @@ def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
     if related:
         return related[:48]
 
+    # Target the exact "More from ... series" container first.
+    section_match = re.search(
+        r'<div class="rc-section">.*?</div>\s*</div>\s*</div>',
+        html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    section_html = html_lib.unescape(section_match.group(0)) if section_match else html_lib.unescape(html)
+
     # Fallback: parse raw card blocks when DOM selectors fail on minified/SSR variants.
     block_re = re.compile(
         r'<div class="video__item[^"]*".*?<a[^>]+href="(?P<href>/videos/hentai/[^"]+)"[^>]*>.*?'
@@ -128,7 +137,7 @@ def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
         r'<div class="video__item__info__subtitle__one_liner">(?P<views>[^<]*)</div>)?',
         re.IGNORECASE | re.DOTALL,
     )
-    for m in block_re.finditer(html):
+    for m in block_re.finditer(section_html):
         href = (m.group("href") or "").strip()
         full_url = f"https://hanime.tv{href}" if href.startswith("/") else href
         slug = _extract_slug(full_url)
