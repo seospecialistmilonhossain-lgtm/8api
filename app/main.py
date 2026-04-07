@@ -375,6 +375,7 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     normalized_url = url
     series_id = None
     is_haho = "haho.moe/anime/" in url
+    is_hanime = "hanime.tv/videos/hentai/" in url
     if is_haho:
         base_match = re.search(r"https?://haho\.moe/anime/([^/]+)", url)
         if base_match:
@@ -397,6 +398,9 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
         if is_haho and series_id:
             from app.scrapers.haho.scraper import get_episode_list
             related = await get_episode_list(series_id)
+        elif is_hanime:
+            from app.scrapers.hanime.scraper import get_related_videos
+            related = await get_related_videos(url)
         else:
             from app.services.video_streaming import get_video_info
             info = await get_video_info(url, api_base_url=api_base)

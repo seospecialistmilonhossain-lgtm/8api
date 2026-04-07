@@ -341,6 +341,42 @@ async def scrape(url: str) -> dict[str, Any]:
         "related_videos": related_videos
     }
 
+
+async def get_related_videos(url: str) -> list[dict[str, Any]]:
+    """
+    Lightweight related-only fetch for /videos/related endpoint.
+    Avoids full scrape dependency and is more resilient for Hanime.
+    """
+    slug = _extract_slug(url)
+    if not slug:
+        return []
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": "https://hanime.tv/",
+        "X-Signature-Version": "web2",
+        "X-Signature": secrets.token_hex(32)
+    }
+
+    try:
+        api_url = f"https://hanime.tv/api/v8/video?id={slug}"
+        data = await fetch_json(api_url, headers=headers)
+        related = _related_from_payload(data, slug)
+        if related:
+            return related
+    except Exception:
+        # Continue to HTML/Nuxt fallbacks below
+        pass
+
+    try:
+        html = await fetch_html(url, headers=headers)
+        related = _related_from_html(html, slug)
+        if related:
+            return related
+        return _related_from_nuxt_state(html, slug)
+    except Exception:
+        return []
+
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, object]]:
     """List videos from hanime.tv API"""
     headers = {
