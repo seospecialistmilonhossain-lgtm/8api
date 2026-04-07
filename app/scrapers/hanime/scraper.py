@@ -2,7 +2,6 @@ from __future__ import annotations
 import json
 import html as html_lib
 import re
-import secrets
 from typing import Any, Optional
 import httpx
 from urllib.parse import urlparse
@@ -279,8 +278,7 @@ async def scrape(url: str) -> dict[str, Any]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Referer": "https://hanime.tv/",
-        "X-Signature-Version": "web2",
-        "X-Signature": secrets.token_hex(32)
+        "Accept": "application/json,text/plain,*/*",
     }
     
     data = await _fetch_json_resilient(api_url, headers=headers)
@@ -376,8 +374,7 @@ async def get_related_videos(url: str) -> list[dict[str, Any]]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Referer": "https://hanime.tv/",
-        "X-Signature-Version": "web2",
-        "X-Signature": secrets.token_hex(32)
+        "Accept": "application/json,text/plain,*/*",
     }
 
     try:
@@ -404,8 +401,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Referer": "https://hanime.tv/",
-        "X-Signature-Version": "web2",
-        "X-Signature": secrets.token_hex(32)
+        "Accept": "application/json,text/plain,*/*",
     }
     
     # API is 0-indexed using 'p' parameter

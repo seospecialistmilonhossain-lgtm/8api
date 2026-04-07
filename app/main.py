@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from datetime import datetime
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -374,8 +375,11 @@ async def related_videos_endpoint(request: Request, url: str = Query(..., descri
     import re
     normalized_url = url
     series_id = None
-    is_haho = "haho.moe/anime/" in url
-    is_hanime = "hanime.tv/videos/hentai/" in url
+    parsed_input = urlparse(url)
+    host_lower = (parsed_input.netloc or "").lower()
+    path_lower = (parsed_input.path or "").lower()
+    is_haho = "haho.moe" in host_lower and "/anime/" in path_lower
+    is_hanime = "hanime.tv" in host_lower and "/videos/hentai/" in path_lower
     if is_haho:
         base_match = re.search(r"https?://haho\.moe/anime/([^/]+)", url)
         if base_match:
