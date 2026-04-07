@@ -21,6 +21,28 @@ def _extract_slug(url: str) -> Optional[str]:
     return None
 
 
+async def _fetch_json_resilient(url: str, headers: dict[str, str]) -> dict[str, Any]:
+    """Fetch JSON with pool first, then httpx fallback for flaky hosts."""
+    try:
+        return await fetch_json(url, headers=headers)
+    except Exception:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+
+
+async def _fetch_html_resilient(url: str, headers: dict[str, str]) -> str:
+    """Fetch HTML with pool first, then httpx fallback for flaky hosts."""
+    try:
+        return await fetch_html(url, headers=headers)
+    except Exception:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            return resp.text
+
+
 def _related_from_payload(data: dict[str, Any], current_slug: str) -> list[dict[str, Any]]:
     """Extract related/episode items from known HAnime API structures."""
     related: list[dict[str, Any]] = []
@@ -261,7 +283,7 @@ async def scrape(url: str) -> dict[str, Any]:
         "X-Signature": secrets.token_hex(32)
     }
     
-    data = await fetch_json(api_url, headers=headers)
+    data = await _fetch_json_resilient(api_url, headers=headers)
     
     video_info = data.get("hentai_video", {})
     if not video_info:
@@ -318,7 +340,7 @@ async def scrape(url: str) -> dict[str, Any]:
     related_videos = _related_from_payload(data, slug)
     if not related_videos:
         try:
-            html = await fetch_html(url, headers=headers)
+            html = await _fetch_html_resilient(url, headers=headers)
             related_videos = _related_from_html(html, slug)
             if not related_videos:
                 related_videos = _related_from_nuxt_state(html, slug)
@@ -360,7 +382,7 @@ async def get_related_videos(url: str) -> list[dict[str, Any]]:
 
     try:
         api_url = f"https://hanime.tv/api/v8/video?id={slug}"
-        data = await fetch_json(api_url, headers=headers)
+        data = await _fetch_json_resilient(api_url, headers=headers)
         related = _related_from_payload(data, slug)
         if related:
             return related
@@ -369,7 +391,7 @@ async def get_related_videos(url: str) -> list[dict[str, Any]]:
         pass
 
     try:
-        html = await fetch_html(url, headers=headers)
+        html = await _fetch_html_resilient(url, headers=headers)
         related = _related_from_html(html, slug)
         if related:
             return related
