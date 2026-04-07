@@ -18,6 +18,45 @@ def _extract_slug(url: str) -> Optional[str]:
         return m.group(1)
     return None
 
+
+def _related_from_payload(data: dict[str, Any], current_slug: str) -> list[dict[str, Any]]:
+    """Extract related/episode items from known HAnime API structures."""
+    related: list[dict[str, Any]] = []
+    seen: set[str] = {current_slug}
+
+    def add_many(items: Any) -> None:
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            slug = str(item.get("slug") or "").strip()
+            if not slug or slug in seen:
+                continue
+            seen.add(slug)
+            related.append(
+                {
+                    "url": f"https://hanime.tv/videos/hentai/{slug}",
+                    "title": item.get("name") or slug.replace("-", " "),
+                    "thumbnail_url": item.get("poster_url") or item.get("cover_url"),
+                    "views": str(item.get("views", "0")),
+                    "upload_date": item.get("released_at") or item.get("created_at"),
+                    "uploader_name": item.get("brand"),
+                }
+            )
+
+    video_info = data.get("hentai_video", {}) or {}
+
+    # Common related sources seen in HAnime payloads (episodes, franchise, recommendations).
+    add_many(video_info.get("hentai_franchise_hentai_videos"))
+    add_many(video_info.get("hentai_recommendations"))
+    add_many(video_info.get("related_hentai_videos"))
+    add_many(data.get("related_hentai_videos"))
+    add_many(data.get("hentai_videos"))
+    add_many(data.get("recommendations"))
+
+    return related[:48]
+
 async def scrape(url: str) -> dict[str, Any]:
     slug = _extract_slug(url)
     if not slug:
@@ -88,6 +127,8 @@ async def scrape(url: str) -> dict[str, Any]:
         "has_video": len(streams) > 0
     }
 
+    related_videos = _related_from_payload(data, slug)
+
     return {
         "url": url,
         "title": title,
@@ -100,7 +141,7 @@ async def scrape(url: str) -> dict[str, Any]:
         "category": None,
         "tags": tags,
         "video": video_data,
-        "related_videos": [] # We could potentially parse from recommendations
+        "related_videos": related_videos
     }
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, object]]:
