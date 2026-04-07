@@ -5,8 +5,9 @@ import secrets
 from typing import Any, Optional
 import httpx
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 
-from app.core.pool import fetch_json, post_json
+from app.core.pool import fetch_html, fetch_json, post_json
 
 def can_handle(host: str) -> bool:
     return "hanime.tv" in host.lower()
@@ -54,6 +55,66 @@ def _related_from_payload(data: dict[str, Any], current_slug: str) -> list[dict[
     add_many(data.get("related_hentai_videos"))
     add_many(data.get("hentai_videos"))
     add_many(data.get("recommendations"))
+
+    return related[:48]
+
+
+def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
+    """Fallback parser for 'More from <series>' / Up Next blocks on page HTML."""
+    soup = BeautifulSoup(html, "lxml")
+    related: list[dict[str, Any]] = []
+    seen: set[str] = {current_slug}
+
+    for card in soup.select(".rc-section .video__item"):
+        link = card.select_one("a[href*='/videos/hentai/']")
+        if not link:
+            continue
+        href = (link.get("href") or "").strip()
+        if not href:
+            continue
+        full_url = href if href.startswith("http") else f"https://hanime.tv{href}"
+        slug = _extract_slug(full_url)
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+
+        title = (
+            card.select_one(".video__item__info__title").get_text(strip=True)
+            if card.select_one(".video__item__info__title")
+            else slug.replace("-", " ")
+        )
+
+        # Poster is in inline style: background: url("...") ...
+        thumb = None
+        image = card.select_one(".video__item__image")
+        if image:
+            style = image.get("style") or ""
+            m = re.search(r'url\(["\']?([^"\')]+)', style)
+            if m:
+                thumb = m.group(1)
+
+        subtitle_lines = [
+            x.get_text(strip=True)
+            for x in card.select(".video__item__info__subtitle__one_liner")
+            if x.get_text(strip=True)
+        ]
+        uploader = subtitle_lines[0] if subtitle_lines else None
+        views = "0"
+        if len(subtitle_lines) > 1:
+            vm = re.search(r"([\d,]+)\s*views?", subtitle_lines[1], re.IGNORECASE)
+            if vm:
+                views = vm.group(1).replace(",", "")
+
+        related.append(
+            {
+                "url": full_url,
+                "title": title,
+                "thumbnail_url": thumb,
+                "views": views,
+                "upload_date": None,
+                "uploader_name": uploader,
+            }
+        )
 
     return related[:48]
 
@@ -128,6 +189,13 @@ async def scrape(url: str) -> dict[str, Any]:
     }
 
     related_videos = _related_from_payload(data, slug)
+    if not related_videos:
+        try:
+            html = await fetch_html(url, headers=headers)
+            related_videos = _related_from_html(html, slug)
+        except Exception:
+            # Keep scraper resilient: related remains optional metadata.
+            related_videos = []
 
     return {
         "url": url,
