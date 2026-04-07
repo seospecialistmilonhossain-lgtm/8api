@@ -105,7 +105,7 @@ def _infer_stream_format(url: str) -> str:
     u = (url or "").lower()
     if ".m3u8" in u:
         return "hls"
-    if ".mp4" in u or "stream=1" in u or "/get_video?" in u:
+    if ".mp4" in u or "stream=1" in u or "/get_video?" in u or "tapecontent.net/" in u:
         return "mp4"
     return "embed"
 
@@ -157,6 +157,29 @@ async def _resolve_streamtape_direct(streamtape_url: str) -> str | None:
                 unescaped = m.group(1).replace("\\/", "/").replace("\\?", "?")
                 candidates.append(urljoin("https://streamtape.com", unescaped))
 
+            # Tokens in hidden elements are often obfuscated (e.g., *cde, *xyza).
+            # The valid token usually appears in inline script literals.
+            script_tokens = [
+                t
+                for t in re.findall(r"token=([A-Za-z0-9_-]{8,})", html, flags=re.I)
+                if not (t.endswith("cde") or t.endswith("xyza"))
+            ]
+
+            # Build token-swapped candidates from discovered /get_video URLs.
+            if script_tokens and candidates:
+                swapped: list[str] = []
+                unique_tokens: list[str] = []
+                token_seen: set[str] = set()
+                for t in script_tokens:
+                    if t in token_seen:
+                        continue
+                    token_seen.add(t)
+                    unique_tokens.append(t)
+                for base in candidates:
+                    for t in unique_tokens:
+                        swapped.append(re.sub(r"token=[^&\"'\s]+", f"token={t}", base, count=1))
+                candidates.extend(swapped)
+
             # Deduplicate while preserving first-seen order.
             seen: set[str] = set()
             uniq_candidates: list[str] = []
@@ -173,9 +196,35 @@ async def _resolve_streamtape_direct(streamtape_url: str) -> str | None:
 
             for candidate in uniq_candidates:
                 try:
-                    # Follow to final signed CDN URL where possible.
+                    # Prefer asking for the direct stream variant, which should 302 to tapecontent.
+                    stream_candidate = candidate
+                    if "stream=1" not in stream_candidate:
+                        joiner = "&" if "?" in stream_candidate else "?"
+                        stream_candidate = f"{stream_candidate}{joiner}stream=1"
+
+                    probe = await client.get(
+                        stream_candidate,
+                        headers={
+                            "User-Agent": headers["User-Agent"],
+                            "Accept": "*/*",
+                            "Referer": streamtape_url,
+                        },
+                        follow_redirects=False,
+                    )
+                    location = (probe.headers.get("Location") or "").strip()
+                    if location:
+                        abs_location = urljoin("https://streamtape.com", location)
+                        if "tapecontent.net" in abs_location:
+                            return abs_location
+
+                    body = probe.text or ""
+                    if '"status":500' in body:
+                        # Invalid token candidate.
+                        continue
+
+                    # Fallback: follow to final signed CDN URL where possible.
                     resolved = await client.get(
-                        candidate,
+                        stream_candidate,
                         headers={
                             "User-Agent": headers["User-Agent"],
                             "Accept": "*/*",
