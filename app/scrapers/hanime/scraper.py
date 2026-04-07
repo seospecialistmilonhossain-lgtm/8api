@@ -92,7 +92,7 @@ def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
             style = image.get("style") or ""
             m = re.search(r'url\(["\']?([^"\')]+)', style)
             if m:
-                thumb = m.group(1)
+                thumb = html_lib.unescape(m.group(1)).strip()
 
         subtitle_lines = [
             x.get_text(strip=True)
@@ -149,7 +149,7 @@ def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
         thumb = None
         tm = re.search(r'url\(["\']?([^"\')]+)', style)
         if tm:
-            thumb = tm.group(1)
+            thumb = html_lib.unescape(tm.group(1)).strip()
 
         title = (m.group("title") or "").strip() or slug.replace("-", " ")
         uploader = (m.group("uploader") or "").strip() or None
@@ -190,17 +190,35 @@ def _related_from_nuxt_state(html: str, current_slug: str) -> list[dict[str, Any
         return related
     chunk = m.group(1)
 
-    # Best-effort extraction: explicit slugs and optional per-item literals.
+    # Best-effort extraction: explicit slugs + parse same object for literal poster/cover URLs.
     for slug in re.findall(r'slug:"([^"]+)"', chunk, re.IGNORECASE):
         slug = slug.strip()
         if not slug or slug in seen:
             continue
         seen.add(slug)
+
+        # Locate the closest object literal containing this slug.
+        obj_match = re.search(
+            r"\{[^{}]*slug:\"" + re.escape(slug) + r"\"[^{}]*\}",
+            chunk,
+            re.IGNORECASE | re.DOTALL,
+        )
+        obj = obj_match.group(0) if obj_match else ""
+        title_match = re.search(r'name:"([^"]+)"', obj, re.IGNORECASE)
+        poster_match = re.search(r'poster_url:"([^"]+)"', obj, re.IGNORECASE)
+        cover_match = re.search(r'cover_url:"([^"]+)"', obj, re.IGNORECASE)
+
+        thumb = None
+        if poster_match:
+            thumb = html_lib.unescape(poster_match.group(1)).strip()
+        elif cover_match:
+            thumb = html_lib.unescape(cover_match.group(1)).strip()
+
         related.append(
             {
                 "url": f"https://hanime.tv/videos/hentai/{slug}",
-                "title": slug.replace("-", " ").title(),
-                "thumbnail_url": None,
+                "title": (title_match.group(1).strip() if title_match else slug.replace("-", " ").title()),
+                "thumbnail_url": thumb,
                 "views": "0",
                 "upload_date": None,
                 "uploader_name": None,
