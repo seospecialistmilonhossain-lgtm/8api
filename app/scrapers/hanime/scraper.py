@@ -116,6 +116,51 @@ def _related_from_html(html: str, current_slug: str) -> list[dict[str, Any]]:
             }
         )
 
+    if related:
+        return related[:48]
+
+    # Fallback: parse raw card blocks when DOM selectors fail on minified/SSR variants.
+    block_re = re.compile(
+        r'<div class="video__item[^"]*".*?<a[^>]+href="(?P<href>/videos/hentai/[^"]+)"[^>]*>.*?'
+        r'<div class="video__item__image"[^>]*style="(?P<style>[^"]*)"[^>]*>.*?'
+        r'<div class="video__item__info__title">(?P<title>[^<]+)</div>.*?'
+        r'(?:<div class="video__item__info__subtitle__one_liner">(?P<uploader>[^<]*)</div>.*?'
+        r'<div class="video__item__info__subtitle__one_liner">(?P<views>[^<]*)</div>)?',
+        re.IGNORECASE | re.DOTALL,
+    )
+    for m in block_re.finditer(html):
+        href = (m.group("href") or "").strip()
+        full_url = f"https://hanime.tv{href}" if href.startswith("/") else href
+        slug = _extract_slug(full_url)
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+
+        style = m.group("style") or ""
+        thumb = None
+        tm = re.search(r'url\(["\']?([^"\')]+)', style)
+        if tm:
+            thumb = tm.group(1)
+
+        title = (m.group("title") or "").strip() or slug.replace("-", " ")
+        uploader = (m.group("uploader") or "").strip() or None
+        views = "0"
+        raw_views = (m.group("views") or "").strip()
+        vm = re.search(r"([\d,]+)\s*views?", raw_views, re.IGNORECASE)
+        if vm:
+            views = vm.group(1).replace(",", "")
+
+        related.append(
+            {
+                "url": full_url,
+                "title": title,
+                "thumbnail_url": thumb,
+                "views": views,
+                "upload_date": None,
+                "uploader_name": uploader,
+            }
+        )
+
     return related[:48]
 
 async def scrape(url: str) -> dict[str, Any]:
