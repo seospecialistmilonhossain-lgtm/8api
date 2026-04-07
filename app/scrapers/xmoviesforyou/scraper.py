@@ -95,157 +95,7 @@ def _extract_date(text: str | None) -> str | None:
     return None
 
 
-def _looks_like_streamtape(url: str) -> bool:
-    p = urlparse(url)
-    host = (p.netloc or "").lower().replace("www.", "")
-    return host == "streamtape.com" and (p.path.startswith("/e/") or p.path.startswith("/v/"))
-
-
-def _infer_stream_format(url: str) -> str:
-    u = (url or "").lower()
-    if ".m3u8" in u:
-        return "hls"
-    if ".mp4" in u or "stream=1" in u or "/get_video?" in u or "tapecontent.net/" in u:
-        return "mp4"
-    return "embed"
-
-
-async def _resolve_streamtape_direct(streamtape_url: str) -> str | None:
-    """
-    Resolve streamtape embed URL to a direct URL.
-    Returns None when resolution fails so callers can safely fall back to embed URL.
-    """
-    if not _looks_like_streamtape(streamtape_url):
-        return None
-
-    headers = _default_http_headers() | {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Referer": "https://streamtape.com/",
-    }
-
-    try:
-        async with httpx.AsyncClient(
-            follow_redirects=True,
-            timeout=httpx.Timeout(20.0, connect=15.0),
-            headers=headers,
-        ) as client:
-            page = await client.get(streamtape_url)
-            page.raise_for_status()
-            html = page.text or ""
-
-            candidates: list[str] = []
-
-            # Absolute get_video links
-            for m in re.finditer(
-                r'["\']((?:https?:)?//(?:www\.)?streamtape\.com/get_video\?[^"\']+)["\']',
-                html,
-                flags=re.I,
-            ):
-                candidates.append(m.group(1))
-
-            # Relative get_video links
-            for m in re.finditer(r'["\'](/get_video\?[^"\']+)["\']', html, flags=re.I):
-                candidates.append(urljoin("https://streamtape.com", m.group(1)))
-
-            # Common variant found in hidden divs: /streamtape.com/get_video?...
-            for m in re.finditer(r"(/streamtape\.com/get_video\?[^<\"'\s]+)", html, flags=re.I):
-                raw = m.group(1).strip()
-                candidates.append(f"https:/{raw}" if raw.startswith("/") else raw)
-
-            # Some pages expose escaped variants.
-            for m in re.finditer(r"(/get_video\\\?[^\"'\\]+)", html, flags=re.I):
-                unescaped = m.group(1).replace("\\/", "/").replace("\\?", "?")
-                candidates.append(urljoin("https://streamtape.com", unescaped))
-
-            # Tokens in hidden elements are often obfuscated (e.g., *cde, *xyza).
-            # The valid token usually appears in inline script literals.
-            script_tokens = [
-                t
-                for t in re.findall(r"token=([A-Za-z0-9_-]{8,})", html, flags=re.I)
-                if not (t.endswith("cde") or t.endswith("xyza"))
-            ]
-
-            # Build token-swapped candidates from discovered /get_video URLs.
-            if script_tokens and candidates:
-                swapped: list[str] = []
-                unique_tokens: list[str] = []
-                token_seen: set[str] = set()
-                for t in script_tokens:
-                    if t in token_seen:
-                        continue
-                    token_seen.add(t)
-                    unique_tokens.append(t)
-                for base in candidates:
-                    for t in unique_tokens:
-                        swapped.append(re.sub(r"token=[^&\"'\s]+", f"token={t}", base, count=1))
-                candidates.extend(swapped)
-
-            # Deduplicate while preserving first-seen order.
-            seen: set[str] = set()
-            uniq_candidates: list[str] = []
-            for c in candidates:
-                c2 = c.strip()
-                if not c2:
-                    continue
-                if c2.startswith("//"):
-                    c2 = f"https:{c2}"
-                if c2 in seen:
-                    continue
-                seen.add(c2)
-                uniq_candidates.append(c2)
-
-            for candidate in uniq_candidates:
-                try:
-                    # Prefer asking for the direct stream variant, which should 302 to tapecontent.
-                    stream_candidate = candidate
-                    if "stream=1" not in stream_candidate:
-                        joiner = "&" if "?" in stream_candidate else "?"
-                        stream_candidate = f"{stream_candidate}{joiner}stream=1"
-
-                    probe = await client.get(
-                        stream_candidate,
-                        headers={
-                            "User-Agent": headers["User-Agent"],
-                            "Accept": "*/*",
-                            "Referer": streamtape_url,
-                        },
-                        follow_redirects=False,
-                    )
-                    location = (probe.headers.get("Location") or "").strip()
-                    if location:
-                        abs_location = urljoin("https://streamtape.com", location)
-                        if "tapecontent.net" in abs_location:
-                            return abs_location
-
-                    body = probe.text or ""
-                    if '"status":500' in body:
-                        # Invalid token candidate.
-                        continue
-
-                    # Fallback: follow to final signed CDN URL where possible.
-                    resolved = await client.get(
-                        stream_candidate,
-                        headers={
-                            "User-Agent": headers["User-Agent"],
-                            "Accept": "*/*",
-                            "Referer": streamtape_url,
-                        },
-                    )
-                    final_url = str(resolved.url)
-                    if final_url and (
-                        "tapecontent.net" in final_url
-                        or "streamtape.com/get_video" in final_url
-                        or "stream=1" in final_url
-                    ):
-                        return final_url
-                except Exception:
-                    continue
-    except Exception:
-        return None
-    return None
-
-
-async def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], str | None]:
+def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], str | None]:
     streams: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -286,22 +136,6 @@ async def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any
             if can_handle(host) and not any(x in provider_label for x in ("STREAM", "DOWNLOAD")):
                 continue
 
-            # Replace Streamtape embed URL with direct URL when possible.
-            if provider_quality(provider_label, host) == "streamtape" and _looks_like_streamtape(full):
-                seen.add(full)
-                direct_url = await _resolve_streamtape_direct(full)
-                if direct_url and direct_url not in seen:
-                    seen.add(direct_url)
-                    streams.append(
-                        {
-                            "quality": "streamtape",
-                            "url": direct_url,
-                            "format": _infer_stream_format(direct_url),
-                            "server": "streamtape-direct",
-                        }
-                    )
-                    continue
-
             seen.add(full)
             streams.append(
                 {
@@ -336,24 +170,8 @@ async def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any
                 continue
             if not any(x in same_site_path for x in ("/watch", "/stream", "/go/", "/out/")):
                 continue
-
         if full in seen:
             continue
-
-        if "streamtape.com" in host and _looks_like_streamtape(full):
-            seen.add(full)
-            direct_url = await _resolve_streamtape_direct(full)
-            if direct_url and direct_url not in seen:
-                seen.add(direct_url)
-                streams.append(
-                    {
-                        "quality": "streamtape",
-                        "url": direct_url,
-                        "format": _infer_stream_format(direct_url),
-                        "server": "streamtape-direct",
-                    }
-                )
-                continue
         seen.add(full)
 
         server = host.replace("www.", "") or "external"
@@ -565,7 +383,7 @@ async def scrape(url: str) -> dict[str, Any]:
     page_text = soup.get_text("\n", strip=True)
     upload_date = _extract_date(page_text)
 
-    streams, default_url = await _extract_stream_links(soup)
+    streams, default_url = _extract_stream_links(soup)
     video_data = {
         "streams": streams,
         "default": default_url,
