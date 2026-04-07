@@ -190,11 +190,11 @@ def _related_from_nuxt_state(html: str, current_slug: str) -> list[dict[str, Any
         return related
     chunk = m.group(1)
 
-    # Best-effort extraction: explicit slugs + parse same object for literal poster/cover URLs.
-    for slug in re.findall(r'slug:"([^"]+)"', chunk, re.IGNORECASE):
+    def append_slug(slug: str) -> None:
+        nonlocal related, seen
         slug = slug.strip()
         if not slug or slug in seen:
-            continue
+            return
         seen.add(slug)
 
         # Locate the closest object literal containing this slug.
@@ -213,6 +213,15 @@ def _related_from_nuxt_state(html: str, current_slug: str) -> list[dict[str, Any
             thumb = html_lib.unescape(poster_match.group(1)).strip()
         elif cover_match:
             thumb = html_lib.unescape(cover_match.group(1)).strip()
+        else:
+            # Fallback: search globally for this slug's poster/cover reference.
+            global_poster = re.search(
+                re.escape(slug) + r'[^"\n\r]{0,200}?(https?://[^"\']+?\.(?:png|jpe?g|webp))',
+                html_lib.unescape(html),
+                re.IGNORECASE,
+            )
+            if global_poster:
+                thumb = global_poster.group(1).strip()
 
         related.append(
             {
@@ -224,6 +233,15 @@ def _related_from_nuxt_state(html: str, current_slug: str) -> list[dict[str, Any
                 "uploader_name": None,
             }
         )
+
+    # Best-effort extraction: explicit slugs in franchise chunk.
+    for slug in re.findall(r'slug:"([^"]+)"', chunk, re.IGNORECASE):
+        append_slug(slug)
+
+    # Additional fallback: extract any /videos/hentai/<slug> references from full page source.
+    decoded_html = html_lib.unescape(html)
+    for slug in re.findall(r"/videos/hentai/([a-z0-9\-]+)", decoded_html, re.IGNORECASE):
+        append_slug(slug)
 
     return related[:48]
 
