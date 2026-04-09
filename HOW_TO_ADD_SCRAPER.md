@@ -1,148 +1,253 @@
-# 🎯 How to Add a New Scraper
+# How to Add a New Scraper
 
-Your scrapers are now perfectly organized! Each website has its own folder.
+This guide matches the current backend layout and registration flow.
 
-## 📁 Current Structure
+## Current Structure
 
-```
+```text
 backend/
-└── scrapers/
-    ├── __init__.py
-    ├── xnxx/
-    │   ├── __init__.py
-    │   └── scraper.py
-    ├── xhamster/
-    │   ├── __init__.py
-    │   └── scraper.py
-    ├── xvideos/
-    │   ├── __init__.py
-    │   └── scraper.py
-    └── masa49/
+├── main.py
+└── app/
+    ├── main.py
+    └── scrapers/
         ├── __init__.py
-        └── scraper.py
+        ├── xnxx/
+        │   ├── __init__.py
+        │   ├── scraper.py
+        │   └── categories.json
+        └── <site_name>/
+            ├── __init__.py
+            ├── scraper.py
+            └── categories.json
 ```
 
----
+## Required Interface
 
-## ✅ How to Add New Scraper (3 Steps)
+Each scraper module must expose these functions:
 
-### Step 1: Create New Folder
+- `can_handle(host: str) -> bool`
+- `scrape(url: str) -> dict`
+- `list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict]`
+- `get_categories() -> list[dict]` (or async if the scraper requires it)
 
-Create `scrapers/pornhub/` (or any site name)
+Optional:
 
-### Step 2: Create Files
+- `crawl_videos(...)` only if you want `/api/v1/crawls` support
 
-**`scrapers/pornhub/__init__.py`**:
+## Step-by-Step
 
-```python
-"""Pornhub scraper module"""
-from .scraper import can_handle, scrape, list_videos
+### 1) Create the new scraper folder
 
-__all__ = ['can_handle', 'scrape', 'list_videos']
+Create `backend/app/scrapers/<site_name>/` with:
+
+- `scraper.py`
+- `__init__.py`
+- `categories.json`
+
+Fastest start:
+
+```bash
+cp -r backend/app/scrapers/xnxx backend/app/scrapers/<site_name>
 ```
 
-**`scrapers/pornhub/scraper.py`**:
+Then rename/update internals.
+
+### 2) Implement exports in `__init__.py`
+
+Example:
 
 ```python
+from .scraper import can_handle, scrape, list_videos, get_categories
+
+__all__ = ["can_handle", "scrape", "list_videos", "get_categories"]
+```
+
+If your scraper has `crawl_videos`, include it in imports/`__all__`.
+
+### 3) Register scraper package
+
+Edit `backend/app/scrapers/__init__.py`:
+
+1. Add `from . import <site_name>`
+2. Add `"<site_name>"` to `__all__`
+
+If you skip this, importing from `app.scrapers` in `app/main.py` will fail.
+
+### 4) Register in `backend/app/main.py`
+
+Update all required dispatcher/router spots:
+
+1. **Top-level import from `app.scrapers`**
+   - Add `<site_name>` to the import list.
+2. **`_scrape_dispatch(...)`**
+   - Add branch for `can_handle()` -> `scrape()`.
+3. **`_list_dispatch(...)`**
+   - Add branch for `can_handle()` -> `list_videos()`.
+4. **`get_categories(source: str)` endpoint**
+   - Add source alias mapping -> `<site_name>.get_categories()`.
+5. **`_crawl_dispatch(...)` (optional)**
+   - Add only if your scraper implements crawling.
+
+## Minimal `scraper.py` Template
+
+```python
+from __future__ import annotations
+
 import httpx
 from bs4 import BeautifulSoup
 
+
 def can_handle(host: str) -> bool:
-    """Check if this scraper can handle the given host"""
-    return "pornhub.com" in host.lower()
+    h = (host or "").lower()
+    return "example.com" in h or "www.example.com" in h
+
 
 async def scrape(url: str) -> dict:
-    """Scrape single video metadata"""
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        html = response.text
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        res = await client.get(url)
+        res.raise_for_status()
+    soup = BeautifulSoup(res.text, "lxml")
 
-    soup = BeautifulSoup(html, 'lxml')
-
+    title = soup.title.get_text(strip=True) if soup.title else ""
     return {
         "url": url,
-        "title": soup.find('h1').get_text(strip=True),
-        "thumbnail_url": soup.find('meta', property='og:image')['content'],
-        "duration": None,  # Extract from page
-        "views": None,  # Extract from page
-        "uploader_name": None,  # Extract from page
-        "video": {  # Video streaming URLs
+        "title": title,
+        "thumbnail_url": None,
+        "duration": None,
+        "views": None,
+        "uploader_name": None,
+        "video": {
             "streams": [],
             "hls": None,
             "default": None,
-            "has_video": False
-        }
+            "has_video": False,
+        },
     }
 
-async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dict]:
-    """List videos from a page"""
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{base_url}?page={page}")
-        html = response.text
 
-    soup = BeautifulSoup(html, 'lxml')
-    videos = []
+async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict]:
+    return []
 
-    # Extract video cards from the page
-    # Implementation here...
 
-    return videos
+def get_categories() -> list[dict]:
+    return []
 ```
 
-### Step 3: Register in `scrapers/__init__.py`
+## Categories File
 
-```python
-from . import xnxx
-from . import xhamster
-from . import xvideos
-from . import masa49
-from . import pornhub  # ✅ Add this
+`categories.json` should be a list of category objects your scraper understands. Keep the shape consistent with existing scraper folders so `/api/v1/categories` returns valid `CategoryItem` entries.
 
-__all__ = ['xnxx', 'xhamster', 'xvideos', 'masa49', 'pornhub']
-```
+## Verification Checklist
 
-### Step 4: Add to `main.py` Dispatcher
+Before shipping:
 
-```python
-from scrapers import masa49, xhamster, xnxx, xvideos, pornhub  # Add pornhub
+- New folder exists in `backend/app/scrapers/<site_name>/`
+- `backend/app/scrapers/__init__.py` includes `<site_name>`
+- `backend/app/main.py` updated in:
+  - scraper imports
+  - `_scrape_dispatch`
+  - `_list_dispatch`
+  - `/api/v1/categories` source mapping
+  - optional `_crawl_dispatch`
+- `can_handle()` matches real hostnames
+- `scrape()` and `list_videos()` return dict keys expected by API schemas
 
-# In _scrape_dispatch function:
-async def _scrape_dispatch(url: str, host: str) -> dict[str, object]:
-    if xhamster.can_handle(host):
-        return await xhamster.scrape(url)
-    if masa49.can_handle(host):
-        return await masa49.scrape(url)
-    if xnxx.can_handle(host):
-        return await xnxx.scrape(url)
-    if xvideos.can_handle(host):
-        return await xvideos.scrape(url)
-    if pornhub.can_handle(host):  # ✅ Add this
-        return await pornhub.scrape(url)
-    raise HTTPException(status_code=400, detail="Unsupported host")
-```
-
-**Done!** 🎉
-
----
-
-## 🚀 Benefits of This Structure
-
-✅ **Easy Recognition**: Each site in its own folder
-✅ **Scalable**: Add 100+ scrapers without clutter
-✅ **Organized**: Related files stay together
-✅ **Auto-imports**: Python package system handles it
-✅ **Clear**: Easy to find and modify any scraper
-
----
-
-## 📊 Add 10 Sites in 10 Minutes
+Quick manual tests (replace URL and source):
 
 ```bash
-# Copy template
-cp -r scrapers/xnxx scrapers/pornhub
-# Rename and edit scraper.py
-# Add to __init__.py and main.py
-# Done!
+curl -X POST http://127.0.0.1:8000/api/v1/scrapes \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://example.com/video/123\"}"
+
+curl "http://127.0.0.1:8000/api/v1/videos?base_url=https://example.com/videos&page=1&limit=20"
+
+curl "http://127.0.0.1:8000/api/v1/categories?source=<site_name>"
 ```
 
-With this structure, you can easily scale to 50+ sites! 🎯
+If all three endpoints return valid data, your scraper integration is complete.
+
+## TNAFlix Implementation Notes
+
+Use this as a concrete example for `tnaflix.com` support.
+
+### Host aliases
+
+- `tnaflix.com`
+- `www.tnaflix.com`
+
+Example:
+
+```python
+def can_handle(host: str) -> bool:
+    h = (host or "").lower()
+    return h == "tnaflix.com" or h.endswith(".tnaflix.com")
+```
+
+### Metadata extraction fallback order
+
+For `scrape(url)` on TNAFlix, this order is resilient:
+
+1. `og:title` / `og:description` / `og:image`
+2. `twitter:title` / `twitter:image`
+3. JSON-LD `VideoObject` (`name`, `description`, `thumbnailUrl`, `duration`, `keywords`)
+4. Visible text fallback (duration/views regex)
+
+This keeps the response stable even when one source disappears.
+
+### Stream extraction approach
+
+TNAFlix video URLs are typically exposed in inline script blocks. For a first pass:
+
+- Scan page HTML for `.m3u8` and `.mp4` URLs
+- Unescape script-escaped URLs (`\\/` -> `/`, `\\u0026` -> `&`)
+- Build `video.streams` with:
+  - `quality`
+  - `url`
+  - `format` (`hls` or `mp4`)
+- Set `video.default` to the best candidate after sorting by quality
+
+Keep the response shape compatible with existing `ScrapeResponse` expectations.
+
+### Listing and pagination patterns
+
+For `list_videos(base_url, page, limit)`:
+
+- Parse video cards by filtering links that contain `/video`
+- Pull title from `a[title]`, image `alt`, or visible text
+- Pull thumbnail from `data-src` / `data-original` / `src`
+- Extract duration/views/uploader from nearest card container text/selectors
+- Start with query pagination (`?page={page}`) for page > 1
+
+### Registration checklist for TNAFlix
+
+Besides creating `backend/app/scrapers/tnaflix/`, update all of these:
+
+- `backend/app/scrapers/__init__.py`
+- `backend/app/main.py`
+  - import list
+  - `_scrape_dispatch`
+  - `_list_dispatch`
+  - `/api/v1/categories` source mapping (`source=tnaflix`)
+- `backend/app/services/video_streaming.py`
+  - scraper selection branch
+  - unsupported-host help text (optional)
+- `backend/app/services/global_search.py`
+  - `available_scrapers`
+  - search URL pattern
+  - trending registry
+- `backend/app/api/endpoints/explore.py`
+  - add `ExploreSourceResponse` for TNAFlix
+
+### TNAFlix verification examples
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/scrapes \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://www.tnaflix.com/video/123456/demo\"}"
+
+curl "http://127.0.0.1:8000/api/v1/videos?base_url=https://www.tnaflix.com/&page=1&limit=20"
+
+curl "http://127.0.0.1:8000/api/v1/categories?source=tnaflix"
+
+curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://www.tnaflix.com/video/123456/demo"
+```

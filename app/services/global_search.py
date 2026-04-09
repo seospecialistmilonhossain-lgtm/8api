@@ -55,7 +55,7 @@ async def global_search(
     start_time = time()
     
     # Import scraper modules
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix
     
     # Build scraper registry (until we have real registry)
     available_scrapers = {
@@ -72,6 +72,7 @@ async def global_search(
         'hanime': hanime,
         'oppai': oppai,
         'xmoviesforyou': xmoviesforyou,
+        'tnaflix': tnaflix,
     }
     
     # Determine which sites to search
@@ -166,6 +167,7 @@ def _build_search_url(site_name: str, query: str, scraper_module) -> str:
         "hanime": f"https://hanime.tv/search?q={query_encoded}",
         "oppai": f"https://oppai.stream/search?t={query_encoded}",
         "xmoviesforyou": f"https://xmoviesforyou.com/?s={query_encoded}",
+        "tnaflix": f"https://www.tnaflix.com/search/{query_encoded}",
     }
     
     return search_patterns.get(site_name)
@@ -219,7 +221,7 @@ async def global_trending(
     
     Similar to global search but uses trending pages
     """
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix
     
     available_scrapers = {
         'xhamster': (xhamster, "https://xhamster.com/trending"),
@@ -235,6 +237,7 @@ async def global_trending(
         'hanime': (hanime, "https://hanime.tv/trending"),
         'oppai': (oppai, "https://oppai.stream/search?a=trending"),
         'xmoviesforyou': (xmoviesforyou, "https://xmoviesforyou.com/"),
+        'tnaflix': (tnaflix, "https://www.tnaflix.com/"),
     }
     
     if not sites:
