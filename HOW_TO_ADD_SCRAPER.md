@@ -251,3 +251,64 @@ curl "http://127.0.0.1:8000/api/v1/categories?source=tnaflix"
 
 curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://www.tnaflix.com/video/123456/demo"
 ```
+
+## HornySimp Implementation Notes
+
+HornySimp (`hornysimp.com`) is a WordPress/Elementor-style listing site where video pages typically embed third-party players via `<iframe>`, rather than exposing direct `.mp4`/`.m3u8` URLs on the main page HTML.
+
+### Host aliases
+
+- `hornysimp.com`
+- `www.hornysimp.com` (if it ever appears)
+
+### Pagination pattern
+
+Section pages and the home page paginate using a query param:
+
+- `?_page=2`
+- `?_page=3`
+
+So `list_videos(base_url, page)` should generally build `base_url + "?_page={page}"` (or `&` if `base_url` already has a query).
+
+### Stream extraction approach (same idea as `xxxparodyhd`)
+
+For `scrape(url)`:
+
+- Extract metadata from `og:title`, `og:description`, `og:image`, plus `h1` fallback.
+- Collect player embed URLs from `iframe[src]` (skip ad iframes). The site uses two tabs (`Server 1` / `Server 2`); expose each iframe as its own stream with `format="embed"` and `quality` set to `"Server 1"`, `"Server 2"`, … matching the UI.
+- Set `video.default` to the **LuluStream / hrnyvid** embed when present (same “prefer Lulu” behavior as XXXParodyHD), otherwise the first embed.
+- `GET /api/v1/videos/stream` for `hornysimp.com` includes **flat per-source fields** (`Server 1`, `Server 2`, …) in the JSON response, same pattern as `xxxparodyhd.net` (see `get_stream_url` in `video_streaming.py`).
+
+### Registration checklist for HornySimp
+
+Besides creating `backend/app/scrapers/hornysimp/`, update all of these:
+
+- `backend/app/scrapers/__init__.py`
+- `backend/app/main.py`
+  - import list
+  - `_scrape_dispatch`
+  - `_list_dispatch`
+  - `/api/v1/categories` source mapping (`source=hornysimp`)
+- `backend/app/services/video_streaming.py`
+  - scraper selection branch
+  - unsupported-host help text
+- `backend/app/services/global_search.py`
+  - `available_scrapers`
+  - search URL pattern (`https://hornysimp.com/?s={query}`)
+  - trending registry (use `https://hornysimp.com/`)
+- `backend/app/api/endpoints/explore.py`
+  - add `ExploreSourceResponse` entry
+
+### HornySimp verification examples
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/scrapes \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://hornysimp.com/<post-slug>/\"}"
+
+curl \"http://127.0.0.1:8000/api/v1/videos?base_url=https://hornysimp.com/leaked-clips/&page=1&limit=20\"
+
+curl \"http://127.0.0.1:8000/api/v1/categories?source=hornysimp\"
+
+curl \"http://127.0.0.1:8000/api/v1/videos/info?url=https://hornysimp.com/<post-slug>/\"
+```

@@ -31,7 +31,7 @@ from app.api.endpoints import recommendations, hls, media, explore, thumbnails
 from fastapi import APIRouter
 
 # Scrapers & Models
-from app.scrapers import masa49, xhamster, xnxx, xvideos, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo, cg51, oppai, xmoviesforyou, tnaflix
+from app.scrapers import masa49, xhamster, xnxx, xvideos, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo, cg51, oppai, xmoviesforyou, tnaflix, hornysimp
 from app.models.schemas import ScrapeResponse, ListItem, CategoryItem, ScrapeRequest, ListRequest
 
 logging.basicConfig(level=logging.INFO)
@@ -126,6 +126,7 @@ async def _scrape_dispatch(url: str, host: str) -> dict[str, object]:
     if oppai.can_handle(host): return await oppai.scrape(url)
     if xmoviesforyou.can_handle(host): return await xmoviesforyou.scrape(url)
     if tnaflix.can_handle(host): return await tnaflix.scrape(url)
+    if hornysimp.can_handle(host): return await hornysimp.scrape(url)
     raise HTTPException(status_code=400, detail="Unsupported host")
 
 async def _list_dispatch(base_url: str, host: str, page: int, limit: int) -> list[dict[str, object]]:
@@ -156,6 +157,7 @@ async def _list_dispatch(base_url: str, host: str, page: int, limit: int) -> lis
     if oppai.can_handle(host): return await oppai.list_videos(base_url=base_url, page=page, limit=limit)
     if xmoviesforyou.can_handle(host): return await xmoviesforyou.list_videos(base_url=base_url, page=page, limit=limit)
     if tnaflix.can_handle(host): return await tnaflix.list_videos(base_url=base_url, page=page, limit=limit)
+    if hornysimp.can_handle(host): return await hornysimp.list_videos(base_url=base_url, page=page, limit=limit)
     raise HTTPException(status_code=400, detail="Unsupported host")
 
 async def _crawl_dispatch(base_url: str, host: str, start_page: int, max_pages: int, per_page_limit: int, max_items: int) -> list[dict[str, object]]:
@@ -297,6 +299,7 @@ async def get_categories(source: str) -> list[CategoryItem]:
         if s == "oppai": return [CategoryItem(**c) for c in oppai.get_categories()]
         if s == "xmoviesforyou" or s == "xmovies": return [CategoryItem(**c) for c in xmoviesforyou.get_categories()]
         if s == "tnaflix": return [CategoryItem(**c) for c in tnaflix.get_categories()]
+        if s == "hornysimp": return [CategoryItem(**c) for c in hornysimp.get_categories()]
         raise HTTPException(status_code=400, detail="Unknown source")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load categories: {str(e)}")
