@@ -49,6 +49,22 @@ DUMMY_MEDIA_CONFIG = MediaConfigData(
                     playlist_url="https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
                 ),
                 MediaCategoryResponse(
+                    id="usa",
+                    title="USA",
+                    type="live",
+                    logo_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/united-states-flag-icon.svg",
+                    color_hex="#9C27B0",
+                    playlist_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/usa.m3u",
+                ),
+                MediaCategoryResponse(
+                    id="india",
+                    title="India",
+                    type="live",
+                    logo_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/Flag_of_India.svg",
+                    color_hex="#9C27B0",
+                    playlist_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/india.m3u",
+                ),
+                MediaCategoryResponse(
                     id="adult_18",
                     title="Adult (18+)",
                     type="vod",
