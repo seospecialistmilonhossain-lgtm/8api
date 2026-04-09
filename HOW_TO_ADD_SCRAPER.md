@@ -312,3 +312,71 @@ curl \"http://127.0.0.1:8000/api/v1/categories?source=hornysimp\"
 
 curl \"http://127.0.0.1:8000/api/v1/videos/info?url=https://hornysimp.com/<post-slug>/\"
 ```
+
+## PimpBunny Implementation Notes
+
+[PimpBunny](https://pimpbunny.com/) is a Vicetemple-style tube: public video pages live under `/videos/{slug}/`, categories under `/categories/{slug}/`, and sitewide search under `/search/{query}/`.
+
+### Host aliases
+
+- `pimpbunny.com`
+- `www.pimpbunny.com` (and other subdomains if they mirror the same paths)
+
+Example:
+
+```python
+def can_handle(host: str) -> bool:
+    h = (host or "").lower()
+    return h == "pimpbunny.com" or h.endswith(".pimpbunny.com")
+```
+
+### Metadata and streams (`scrape`)
+
+- Prefer `og:title`, `og:description`, `og:image`, plus `<meta name="keywords">` for tags.
+- **Progressive MP4** URLs appear in the HTML as same-origin `https://pimpbunny.com/get_file/.../*.mp4` (often several resolutions, e.g. `_360p`, `_720p`, `_1080p`, plus a basename `/{id}.mp4` “source” variant).
+- A **HEAD** request to each `get_file` URL (with `Referer: https://pimpbunny.com/`) usually returns **302** to the real playable URL on a CDN host: `https://st*.pimpbunny.com/remote_control.php?time=...&file=%2Fvideos%2F...&cv=...` (tokens are short-lived). If **HEAD** does not redirect, try **GET** with `Range: bytes=0-0` the same way. Tiers that still do not redirect (often premium-only) are **dropped** from `video.streams` so the API does not expose non-playable bare `get_file` links.
+- Parse with regex (and script unescaping `\\/` → `/`, `\\u0026` → `&`), build `video.streams` with `format="mp4"` and `quality` from the filename when possible. The markup often repeats the same resolution with different signing tokens in the path, so **keep one URL per logical quality** (for example a single `720p` and single `1080p`).
+- The page also references `https://pimpbunny.com/embed/{numericId}`; you can expose that as `format="embed"` / `quality="embed"` as a fallback for clients that only handle embeds.
+- Set `video.default` to the best MP4 by resolution, not the embed.
+
+### Listing and pagination (`list_videos`)
+
+- Video cards link to `https://pimpbunny.com/videos/{slug}/`. Skip `upload-video` and the bare `/videos/` index.
+- **Videos index:** page 1 is `https://pimpbunny.com/videos/`, page *n* &gt; 1 is `https://pimpbunny.com/videos/{n}/` (not `?page=`).
+- **Categories:** page 1 is `https://pimpbunny.com/categories/{slug}/`, page *n* &gt; 1 is `https://pimpbunny.com/categories/{slug}/{n}/`.
+- **Search:** base URL `https://pimpbunny.com/search/{term}/`; for page *n* &gt; 1 add `?page=n` (combine with any existing query params).
+- Treat bare `https://pimpbunny.com/` as the videos index when building the first page URL.
+
+### Registration checklist for PimpBunny
+
+Besides creating `backend/app/scrapers/pimpbunny/`, update all of these:
+
+- `backend/app/scrapers/__init__.py`
+- `backend/app/main.py`
+  - import list
+  - `_scrape_dispatch`
+  - `_list_dispatch`
+  - `/api/v1/categories` source mapping (`source=pimpbunny`)
+- `backend/app/services/video_streaming.py`
+  - scraper selection branch
+  - flat `available_qualities` block (same pattern as `tnaflix.com`)
+- `backend/app/services/global_search.py`
+  - `available_scrapers`
+  - search URL pattern (`https://pimpbunny.com/search/{query_plus_encoded}/`)
+  - trending registry (`https://pimpbunny.com/videos/`)
+- `backend/app/api/endpoints/explore.py`
+  - add `ExploreSourceResponse` entry (`baseUrl` should be list-friendly, e.g. `https://pimpbunny.com/videos/`)
+
+### PimpBunny verification examples
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/scrapes \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://pimpbunny.com/videos/gracewearslace-receives-a-cumshot-after-sex/\"}"
+
+curl "http://127.0.0.1:8000/api/v1/videos?base_url=https://pimpbunny.com/videos/&page=1&limit=20"
+
+curl "http://127.0.0.1:8000/api/v1/categories?source=pimpbunny"
+
+curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://pimpbunny.com/videos/gracewearslace-receives-a-cumshot-after-sex/"
+```

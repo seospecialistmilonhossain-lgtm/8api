@@ -24,7 +24,7 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
         }
     """
     # Import here to avoid circular dependency
-    from app.scrapers import xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo, cg51, oppai, xmoviesforyou, tnaflix, hornysimp
+    from app.scrapers import xnxx, xhamster, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo, cg51, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny
     from app.api.endpoints import thumbnails
     from urllib.parse import urlparse
     
@@ -92,10 +92,12 @@ async def get_video_info(url: str, api_base_url: str = "http://localhost:8000") 
         scraper_module = tnaflix
     elif hornysimp.can_handle(host):
         scraper_module = hornysimp
+    elif pimpbunny.can_handle(host):
+        scraper_module = pimpbunny
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported host: {host}. Supported: xnxx, xhamster, xvideos, masa49 (.org/.com/.cam), pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, urshort.live (embed), pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rou.video, 51cg/chigua, oppai.stream, xmoviesforyou.com, tnaflix.com, hornysimp.com"
+            detail=f"Unsupported host: {host}. Supported: xnxx, xhamster, xvideos, masa49 (.org/.com/.cam), pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, urshort.live (embed), pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rou.video, 51cg/chigua, oppai.stream, xmoviesforyou.com, tnaflix.com, hornysimp.com, pimpbunny.com"
         )
     
     try:
@@ -326,7 +328,8 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
         "oppai.stream" in parsed_url.netloc.lower() or
         "xmoviesforyou.com" in parsed_url.netloc.lower() or
         "tnaflix.com" in parsed_url.netloc.lower() or
-        "hornysimp.com" in parsed_url.netloc.lower()):
+        "hornysimp.com" in parsed_url.netloc.lower() or
+        "pimpbunny.com" in parsed_url.netloc.lower()):
         qualities = {}
         all_streams = video_data.get("streams", [])
         

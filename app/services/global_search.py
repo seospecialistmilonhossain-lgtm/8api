@@ -55,7 +55,7 @@ async def global_search(
     start_time = time()
     
     # Import scraper modules
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny
     
     # Build scraper registry (until we have real registry)
     available_scrapers = {
@@ -74,6 +74,7 @@ async def global_search(
         'xmoviesforyou': xmoviesforyou,
         'tnaflix': tnaflix,
         'hornysimp': hornysimp,
+        'pimpbunny': pimpbunny,
     }
     
     # Determine which sites to search
@@ -170,6 +171,7 @@ def _build_search_url(site_name: str, query: str, scraper_module) -> str:
         "xmoviesforyou": f"https://xmoviesforyou.com/?s={query_encoded}",
         "tnaflix": f"https://www.tnaflix.com/search/{query_encoded}",
         "hornysimp": f"https://hornysimp.com/?s={query_encoded}",
+        "pimpbunny": f"https://pimpbunny.com/search/{query_encoded}/",
     }
     
     return search_patterns.get(site_name)
@@ -223,7 +225,7 @@ async def global_trending(
     
     Similar to global search but uses trending pages
     """
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny
     
     available_scrapers = {
         'xhamster': (xhamster, "https://xhamster.com/trending"),
@@ -241,6 +243,7 @@ async def global_trending(
         'xmoviesforyou': (xmoviesforyou, "https://xmoviesforyou.com/"),
         'tnaflix': (tnaflix, "https://www.tnaflix.com/"),
         'hornysimp': (hornysimp, "https://hornysimp.com/"),
+        'pimpbunny': (pimpbunny, "https://pimpbunny.com/videos/"),
     }
     
     if not sites:

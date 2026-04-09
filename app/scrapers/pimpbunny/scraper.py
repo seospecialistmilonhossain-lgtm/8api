@@ -1,0 +1,451 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import re
+from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from bs4 import BeautifulSoup
+
+from app.core.pool import pool as http_pool, fetch_html as pool_fetch_html
+
+
+def can_handle(host: str) -> bool:
+    h = (host or "").lower()
+    return h == "pimpbunny.com" or h.endswith(".pimpbunny.com")
+
+
+def get_categories() -> list[dict]:
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(current_dir, "categories.json")
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+async def fetch_page(url: str) -> str:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://pimpbunny.com/",
+    }
+    return await pool_fetch_html(url, headers=headers)
+
+
+def _first_non_empty(*values: Optional[str]) -> Optional[str]:
+    for v in values:
+        if v is not None and str(v).strip():
+            return str(v).strip()
+    return None
+
+
+def _meta(soup: BeautifulSoup, *, prop: str | None = None, name: str | None = None) -> Optional[str]:
+    if prop:
+        tag = soup.find("meta", attrs={"property": prop})
+        if tag and tag.get("content"):
+            return str(tag.get("content")).strip()
+    if name:
+        tag = soup.find("meta", attrs={"name": name})
+        if tag and tag.get("content"):
+            return str(tag.get("content")).strip()
+    return None
+
+
+def _clean_title(title: str | None) -> Optional[str]:
+    if not title:
+        return None
+    t = title.strip()
+    for suffix in (" | PimpBunny", " - PimpBunny"):
+        if t.endswith(suffix):
+            t = t[: -len(suffix)].strip()
+    return t or None
+
+
+def _best_image_url(img: Any) -> Optional[str]:
+    if img is None:
+        return None
+    for key in ("data-src", "data-original", "data-lazy", "src", "srcset"):
+        v = img.get(key)
+        if not v:
+            continue
+        url = str(v).strip()
+        if not url:
+            continue
+        if key == "srcset" and " " in url:
+            url = url.split(" ", 1)[0].strip()
+        if url.startswith("//"):
+            return f"https:{url}"
+        return url
+    return None
+
+
+def _clean_views_text(v: str | None) -> Optional[str]:
+    if not v:
+        return None
+    txt = str(v).strip().replace(",", "").replace("\u00a0", " ")
+    txt = re.sub(r"[^0-9KMBkmb\. ]", "", txt).strip().replace(" ", "")
+    return txt or None
+
+
+_VIDEO_PAGE_RE = re.compile(
+    r"^https://(?:www\.)?pimpbunny\.com/videos/(?P<slug>[a-z0-9-]+)/?$", re.IGNORECASE
+)
+
+
+def _normalize_video_href(href: str) -> Optional[str]:
+    href = (href or "").strip()
+    if not href:
+        return None
+    if href.startswith("//"):
+        href = f"https:{href}"
+    elif href.startswith("/"):
+        href = f"https://pimpbunny.com{href}"
+    if not href.startswith("http"):
+        return None
+    href = href.split("#", 1)[0]
+    m = _VIDEO_PAGE_RE.match(href.split("?", 1)[0])
+    if not m:
+        return None
+    slug = m.group("slug").lower()
+    if slug in ("upload-video", "videos"):
+        return None
+    return f"https://pimpbunny.com/videos/{slug}/"
+
+
+def _extract_streams(html: str) -> dict[str, Any]:
+    streams: list[dict[str, str]] = []
+    seen_url: set[str] = set()
+    mp4_by_quality: dict[str, str] = {}
+
+    candidates = re.findall(
+        r"https?://(?:www\.)?pimpbunny\.com/get_file/[^\"'\s<>]+?\.mp4/?",
+        html,
+        flags=re.IGNORECASE,
+    )
+    candidates += re.findall(
+        r"https?:\\?/\\?/(?:www\.)?pimpbunny\.com/get_file/[^\"'\s<>]+?\.mp4/?",
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    for raw in candidates:
+        url = raw.replace("\\/", "/").replace("\\u0026", "&").strip().rstrip("/")
+        if url in seen_url:
+            continue
+        lower = url.lower()
+        if "preview" in lower or "_preview" in lower:
+            continue
+        seen_url.add(url)
+        quality = "default"
+        qm = re.search(r"_(\d{3,4})p\.mp4", lower)
+        if qm:
+            quality = f"{qm.group(1)}p"
+        elif re.search(r"/\d+\.mp4$", lower):
+            quality = "source"
+        if quality not in mp4_by_quality:
+            mp4_by_quality[quality] = url
+
+    for q, url in mp4_by_quality.items():
+        streams.append({"quality": q, "url": url, "format": "mp4"})
+
+    embed_seen = False
+    for m in re.finditer(r"https://(?:www\.)?pimpbunny\.com/embed/\d+", html):
+        emb = m.group(0)
+        if not embed_seen:
+            embed_seen = True
+            streams.append({"quality": "embed", "url": emb, "format": "embed"})
+        break
+
+    def _score(s: dict[str, str]) -> int:
+        if s.get("format") == "embed":
+            return -1
+        q = s.get("quality", "")
+        if q == "source":
+            return 2000
+        digits = "".join(ch for ch in q if ch.isdigit())
+        return int(digits) if digits else 0
+
+    streams.sort(key=_score, reverse=True)
+    default_url = None
+    mp4s = [s for s in streams if s.get("format") == "mp4"]
+    if mp4s:
+        default_url = mp4s[0].get("url")
+    elif streams:
+        default_url = streams[0].get("url")
+    return {"streams": streams, "default": default_url, "has_video": bool(streams)}
+
+
+async def _get_file_to_remote_playable(get_file_url: str) -> Optional[str]:
+    """
+    Same-origin get_file URLs 302 to st*.pimpbunny.com/remote_control.php with time-limited tokens.
+    Some tiers return 404 for anonymous HEAD/GET (premium-only); those return None so we omit them.
+    """
+    session = await http_pool.get_session()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+        "Referer": "https://pimpbunny.com/",
+    }
+    _TIMEOUT_SEC = 15.0
+
+    def _loc_from(resp: Any) -> Optional[str]:
+        st = getattr(resp, "status", 0)
+        if st in (301, 302, 303, 307, 308):
+            loc = resp.headers.get("Location") if resp.headers else None
+            if loc and "remote_control.php" in loc:
+                return loc
+        return None
+
+    async def _read_redirect_head(u: str) -> Optional[str]:
+        async with session.head(u, headers=headers, allow_redirects=False) as resp:
+            return _loc_from(resp)
+
+    async def _read_redirect_get(u: str) -> Optional[str]:
+        gh = {**headers, "Range": "bytes=0-0"}
+        async with session.get(u, headers=gh, allow_redirects=False) as resp:
+            return _loc_from(resp)
+
+    async def try_urls(u: str, reader: Any) -> Optional[str]:
+        candidates = (u,) if u.endswith("/") else (u, u + "/")
+        for candidate in candidates:
+            try:
+                loc = await asyncio.wait_for(reader(candidate), timeout=_TIMEOUT_SEC)
+                if loc:
+                    return loc
+            except (asyncio.TimeoutError, Exception):
+                continue
+        return None
+
+    loc = await try_urls(get_file_url, _read_redirect_head)
+    if loc:
+        return loc
+    loc = await try_urls(get_file_url, _read_redirect_get)
+    return loc
+
+
+async def _resolve_video_streams_to_remote_playable(video: dict[str, Any]) -> None:
+    streams: list[dict[str, str]] = video.get("streams") or []
+    mp4 = [s for s in streams if s.get("format") == "mp4" and "get_file" in (s.get("url") or "")]
+    if not mp4:
+        return
+
+    async def resolve_one(s: dict[str, str]) -> tuple[dict[str, str], Optional[str]]:
+        u = await _get_file_to_remote_playable(s["url"])
+        return (s, u)
+
+    resolved = await asyncio.gather(*[resolve_one(s) for s in mp4])
+    for s, remote in resolved:
+        if remote:
+            s["url"] = remote
+        else:
+            streams.remove(s)
+
+    remote_mp4 = [s for s in streams if s.get("format") == "mp4" and "remote_control.php" in (s.get("url") or "")]
+    embed = next((s for s in streams if s.get("format") == "embed"), None)
+
+    if remote_mp4:
+        video["default"] = remote_mp4[0]["url"]
+    elif embed:
+        video["default"] = embed["url"]
+    else:
+        video["default"] = None
+
+    video["has_video"] = bool(remote_mp4) or bool(embed)
+
+
+def parse_video_page(html: str, url: str) -> dict[str, Any]:
+    soup = BeautifulSoup(html, "lxml")
+    title = _clean_title(
+        _first_non_empty(
+            _meta(soup, prop="og:title"),
+            _meta(soup, name="twitter:title"),
+            soup.title.get_text(strip=True) if soup.title else None,
+        )
+    )
+    description = _first_non_empty(_meta(soup, prop="og:description"), _meta(soup, name="description"))
+    thumbnail = _first_non_empty(_meta(soup, prop="og:image"), _meta(soup, name="twitter:image"))
+
+    duration = None
+    views = None
+    uploader = None
+    tags: list[str] = []
+    category = None
+
+    kw = _meta(soup, name="keywords")
+    if kw:
+        tags.extend([x.strip() for x in kw.split(",") if x.strip()])
+
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = script.string or script.get_text(strip=False)
+        if not raw:
+            continue
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            continue
+        objs = parsed if isinstance(parsed, list) else [parsed]
+        for obj in objs:
+            if not isinstance(obj, dict):
+                continue
+            t = obj.get("@type")
+            type_match = t == "VideoObject" or (isinstance(t, list) and "VideoObject" in t)
+            if not type_match:
+                continue
+            title = _clean_title(_first_non_empty(title, obj.get("name")))
+            description = _first_non_empty(description, obj.get("description"))
+            thumb = obj.get("thumbnailUrl")
+            if isinstance(thumb, list) and thumb:
+                thumb = thumb[0]
+            thumbnail = _first_non_empty(thumbnail, thumb if isinstance(thumb, str) else None)
+            author = obj.get("author")
+            if isinstance(author, dict):
+                uploader = _first_non_empty(uploader, author.get("name"))
+            elif isinstance(author, str):
+                uploader = _first_non_empty(uploader, author)
+            genre = obj.get("genre")
+            if isinstance(genre, str):
+                category = _first_non_empty(category, genre)
+
+    if not duration:
+        text = soup.get_text(" ", strip=True)
+        m = re.search(r"\b(?:\d{1,2}:){1,2}\d{2}\b", text)
+        if m:
+            duration = m.group(0)
+
+    if not views:
+        vm = re.search(r"(\d[\d,\.]*\s*[KMB]?)\s*(?:views|view)\b", soup.get_text(" ", strip=True), re.IGNORECASE)
+        if vm:
+            views = _clean_views_text(vm.group(1))
+
+    tags = list(dict.fromkeys(tags))
+    video = _extract_streams(html)
+
+    return {
+        "url": url,
+        "title": title,
+        "description": description,
+        "thumbnail_url": thumbnail,
+        "duration": duration,
+        "views": views,
+        "uploader_name": uploader,
+        "category": category,
+        "tags": tags,
+        "video": video,
+        "related_videos": [],
+        "preview_url": None,
+    }
+
+
+async def scrape(url: str) -> dict[str, Any]:
+    html = await fetch_page(url)
+    data = parse_video_page(html, url)
+    v = data.get("video")
+    if isinstance(v, dict) and v.get("streams"):
+        await _resolve_video_streams_to_remote_playable(v)
+    return data
+
+
+def _build_list_page_url(base_url: str, page: int) -> str:
+    raw = (base_url or "").strip()
+    if not raw.startswith("http"):
+        raw = "https://" + raw.lstrip("/")
+    p = urlparse(raw)
+    scheme = p.scheme or "https"
+    netloc = p.netloc or "pimpbunny.com"
+    parts = [x for x in (p.path or "").split("/") if x]
+    q = dict(parse_qsl(p.query, keep_blank_values=True))
+
+    def out(path: str, query: dict[str, str]) -> str:
+        qs = urlencode(query) if query else ""
+        return urlunparse((scheme, netloc, path, "", qs, ""))
+
+    if parts and parts[0] == "search":
+        term = "/".join(parts[1:]) if len(parts) > 1 else ""
+        path = f"/search/{term}/" if term else "/search/"
+        if page > 1:
+            q["page"] = str(page)
+        return out(path, q)
+
+    if not parts:
+        path = "/videos/" if page <= 1 else f"/videos/{page}/"
+        return out(path, {})
+
+    if parts[0] == "videos":
+        path = "/videos/" if page <= 1 else f"/videos/{page}/"
+        return out(path, {})
+
+    if parts[0] == "categories" and len(parts) >= 2:
+        slug = parts[1]
+        path = f"/categories/{slug}/" if page <= 1 else f"/categories/{slug}/{page}/"
+        return out(path, {})
+
+    base_path = (p.path or "/") if (p.path or "/").endswith("/") else (p.path or "/") + "/"
+    if page > 1:
+        q["page"] = str(page)
+    return out(base_path, q)
+
+
+async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
+    page_url = _build_list_page_url(base_url, page)
+    try:
+        html = await fetch_page(page_url)
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(html, "lxml")
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for a in soup.select("a[href]"):
+        if len(items) >= limit:
+            break
+        href = _normalize_video_href(a.get("href") or "")
+        if not href or href in seen:
+            continue
+
+        img = a.find("img")
+        thumb = _best_image_url(img)
+        if not thumb:
+            continue
+
+        title = a.get("title") or (img.get("alt") if img else None) or a.get_text(" ", strip=True)
+        title = (title or "").strip() or "Unknown Video"
+
+        container = a.find_parent(["article", "li", "div"]) or a
+        ctext = container.get_text(" ", strip=True) if container else ""
+
+        duration = None
+        dm = re.search(r"\b(?:\d{1,2}:){1,2}\d{2}\b", ctext)
+        if dm:
+            duration = dm.group(0)
+
+        views = None
+        vm = re.search(r"(\d[\d,\.]*\s*[KMB]?)\s*(?:views|view)\b", ctext, re.IGNORECASE)
+        if vm:
+            views = _clean_views_text(vm.group(1))
+
+        uploader = None
+        for sub in container.select("a[href]") if container else []:
+            sh = sub.get("href") or ""
+            if "/onlyfans-creators/" in sh or "/models/" in sh:
+                uploader = sub.get_text(" ", strip=True) or None
+                if uploader:
+                    break
+
+        seen.add(href)
+        items.append(
+            {
+                "url": href,
+                "title": title,
+                "thumbnail_url": thumb,
+                "duration": duration,
+                "views": views,
+                "uploader_name": uploader,
+            }
+        )
+
+    return items[:limit]
