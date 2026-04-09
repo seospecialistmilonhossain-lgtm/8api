@@ -82,6 +82,71 @@ def _clean_title(title: str | None) -> Optional[str]:
     return t or None
 
 
+_EXCLUDED_SECTION_PREFIXES = (
+    "https://hornysimp.com/leaked-clips/",
+    "https://hornysimp.com/hd-porns/",
+    "https://hornysimp.com/jav/",
+    "https://hornysimp.com/models/",
+)
+
+
+def _normalize_hornysimp_post_href(href: str) -> Optional[str]:
+    """Return canonical post URL or None if not a single-post link."""
+    href = (href or "").strip()
+    if not href:
+        return None
+    if href.startswith("//"):
+        href = f"https:{href}"
+    if not href.startswith("https://hornysimp.com/"):
+        return None
+    if any(href.startswith(p) and href.rstrip("/") == p.rstrip("/") for p in _EXCLUDED_SECTION_PREFIXES):
+        return None
+    if any(x in href for x in ("/wp-content/", "/wp-json/", "/tag/", "/category/", "/page/", "/feed/")):
+        return None
+    if "?" in href:
+        return None
+    if href.rstrip("/").count("/") < 3:
+        return None
+    return href.split("#", 1)[0]
+
+
+def _list_from_pt_cv_title(
+    soup: BeautifulSoup, limit: int, seen: set[str]
+) -> list[dict[str, Any]]:
+    """
+    Portfolio / Content Views grids use <h4 class="pt-cv-title"><a>Title text</a></h4>.
+    Prefer this path so titles match visible headings (not image alt / other links).
+    """
+    items: list[dict[str, Any]] = []
+    for a in soup.select("h4.pt-cv-title a[href], .pt-cv-title a[href]"):
+        if len(items) >= limit:
+            break
+        canon = _normalize_hornysimp_post_href(a.get("href") or "")
+        if not canon or canon in seen:
+            continue
+
+        title = _clean_title(a.get_text(" ", strip=True)) or "Unknown Video"
+
+        thumb: Optional[str] = None
+        field = a.find_parent("div", class_="pt-cv-ifield")
+        if field:
+            thumb = _best_image_url(field.select_one("img"))
+
+        seen.add(canon)
+        items.append(
+            {
+                "url": canon,
+                "title": title,
+                "thumbnail_url": thumb,
+                "duration": None,
+                "views": None,
+                "uploader_name": None,
+            }
+        )
+
+    return items
+
+
 def _is_probable_ad_iframe(src: str) -> bool:
     s = (src or "").lower()
     return any(x in s for x in ("trudigo.com/banner", "googlesyndication", "doubleclick", "adservice"))
@@ -96,9 +161,12 @@ def _embed_quality_label(idx: int) -> str:
 
 
 def _default_embed_url(embed_urls: list[str]) -> str | None:
-    """Prefer LuluStream / hrnyvid (same idea as xxxparodyhd prioritizing lulu)."""
+    """Prefer Byse (`byseraguci.com`) — HornySimp \"Server 2\" — as default when present."""
     if not embed_urls:
         return None
+    for u in embed_urls:
+        if "byseraguci.com" in u.lower():
+            return u
     for u in embed_urls:
         low = u.lower()
         if "hrnyvid" in low or "lulu" in low:
@@ -191,42 +259,19 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         return []
 
     soup = BeautifulSoup(html, "lxml")
-    items: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    # Known section URLs to exclude from post results
-    excluded_prefixes = (
-        "https://hornysimp.com/leaked-clips/",
-        "https://hornysimp.com/hd-porns/",
-        "https://hornysimp.com/jav/",
-        "https://hornysimp.com/models/",
-    )
+    # 1) PT Content Views: <h4 class="pt-cv-title"><a>…</a></h4> — correct visible titles
+    items = _list_from_pt_cv_title(soup, limit, seen)
 
+    # 2) Fallback: image/card links (older layouts)
     for a in soup.select("a[href]"):
         if len(items) >= limit:
             break
-        href = (a.get("href") or "").strip()
-        if not href:
-            continue
-        if href.startswith("//"):
-            href = f"https:{href}"
-        if not href.startswith("https://hornysimp.com/"):
-            continue
-        if any(href.startswith(p) and href.rstrip("/") == p.rstrip("/") for p in excluded_prefixes):
-            continue
-        if any(x in href for x in ("/wp-content/", "/wp-json/", "/tag/", "/category/", "/page/", "/feed/")):
-            continue
-        if "?" in href:
-            continue
-        # Rough heuristic: posts are single-segment slugs; keep them long-ish
-        if href.rstrip("/").count("/") < 3:
+        canon = _normalize_hornysimp_post_href(a.get("href") or "")
+        if not canon or canon in seen:
             continue
 
-        href = href.split("#", 1)[0]
-        if href in seen:
-            continue
-
-        # Prefer links that are attached to an image (thumbnail)
         img = a.find("img") or (a.find_parent(["article", "div", "li"]) or a).find("img")
         thumb = _best_image_url(img)
         if not thumb:
@@ -235,10 +280,10 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         title = a.get("title") or (img.get("alt") if img else None) or a.get_text(" ", strip=True)
         title = _clean_title(title) or "Unknown Video"
 
-        seen.add(href)
+        seen.add(canon)
         items.append(
             {
-                "url": href,
+                "url": canon,
                 "title": title,
                 "thumbnail_url": thumb,
                 "duration": None,

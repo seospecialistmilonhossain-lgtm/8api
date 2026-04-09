@@ -276,7 +276,7 @@ For `scrape(url)`:
 
 - Extract metadata from `og:title`, `og:description`, `og:image`, plus `h1` fallback.
 - Collect player embed URLs from `iframe[src]` (skip ad iframes). The site uses two tabs (`Server 1` / `Server 2`); expose each iframe as its own stream with `format="embed"` and `quality` set to `"Server 1"`, `"Server 2"`, … matching the UI.
-- Set `video.default` to the **LuluStream / hrnyvid** embed when present (same “prefer Lulu” behavior as XXXParodyHD), otherwise the first embed.
+- Set `video.default` to the **Byse / byseraguci.com** embed (“Server 2”) when present, else **hrnyvid / LuluStream**, else the first embed.
 - `GET /api/v1/videos/stream` for `hornysimp.com` includes **flat per-source fields** (`Server 1`, `Server 2`, …) in the JSON response, same pattern as `xxxparodyhd.net` (see `get_stream_url` in `video_streaming.py`).
 
 ### Registration checklist for HornySimp
