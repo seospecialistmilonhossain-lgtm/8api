@@ -206,7 +206,7 @@ EXPLORE_SOURCES = [
         searchUrlTemplate="https://www.tnaflix.com/search/{query}",
         sourceId="tnaflix",
         disable=False,
-        pageSize=48,
+        pageSize=60,
     ),
     ExploreSourceResponse(
         baseUrl="https://www.pornhat.com/",
