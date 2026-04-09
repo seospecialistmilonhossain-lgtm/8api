@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import re
+import time
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -118,23 +119,23 @@ def _normalize_video_href(href: str) -> Optional[str]:
 
 
 def _extract_streams(html: str) -> dict[str, Any]:
+    """
+    Pages often list the same logical quality multiple times (stale + current signing hashes).
+    The player block appears later in the document; **last match per quality wins**.
+    """
+    html = html.replace("\\/", "/").replace("\\u0026", "&")
     streams: list[dict[str, str]] = []
     seen_url: set[str] = set()
     mp4_by_quality: dict[str, str] = {}
 
-    candidates = re.findall(
+    pat = re.compile(
         r"https?://(?:www\.)?pimpbunny\.com/get_file/[^\"'\s<>]+?\.mp4/?",
-        html,
-        flags=re.IGNORECASE,
-    )
-    candidates += re.findall(
-        r"https?:\\?/\\?/(?:www\.)?pimpbunny\.com/get_file/[^\"'\s<>]+?\.mp4/?",
-        html,
-        flags=re.IGNORECASE,
+        re.IGNORECASE,
     )
 
-    for raw in candidates:
-        url = raw.replace("\\/", "/").replace("\\u0026", "&").strip().rstrip("/")
+    for m in pat.finditer(html):
+        raw = m.group(0)
+        url = raw.strip().rstrip("/")
         if url in seen_url:
             continue
         lower = url.lower()
@@ -147,8 +148,7 @@ def _extract_streams(html: str) -> dict[str, Any]:
             quality = f"{qm.group(1)}p"
         elif re.search(r"/\d+\.mp4$", lower):
             quality = "source"
-        if quality not in mp4_by_quality:
-            mp4_by_quality[quality] = url
+        mp4_by_quality[quality] = url
 
     for q, url in mp4_by_quality.items():
         streams.append({"quality": q, "url": url, "format": "mp4"})
@@ -180,15 +180,22 @@ def _extract_streams(html: str) -> dict[str, Any]:
     return {"streams": streams, "default": default_url, "has_video": bool(streams)}
 
 
-async def _get_file_to_remote_playable(get_file_url: str) -> Optional[str]:
+async def _get_file_to_remote_playable(get_file_url: str, *, referer: str) -> Optional[str]:
     """
-    Same-origin get_file URLs 302 to st*.pimpbunny.com/remote_control.php with time-limited tokens.
-    Some tiers return 404 for anonymous HEAD/GET (premium-only); those return None so we omit them.
+    Same-origin get_file URLs 302 to st*.pimpbunny.com/remote_control.php.
+    The in-browser player uses GET with Range, the video page as Referer, and ?rnd=<ms> on the URL
+    (see devtools); matching that recovers redirects for all tiers including *_pb_*360p/480p/1080p names.
+    Tiers that still do not redirect return None.
     """
     session = await http_pool.get_session()
+    base = get_file_url.split("?", 1)[0].strip().rstrip("/")
+    ref = referer.strip() if referer.strip().startswith("http") else f"https://pimpbunny.com/{referer.strip().lstrip('/')}"
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
-        "Referer": "https://pimpbunny.com/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": ref,
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
     }
     _TIMEOUT_SEC = 15.0
 
@@ -200,41 +207,51 @@ async def _get_file_to_remote_playable(get_file_url: str) -> Optional[str]:
                 return loc
         return None
 
-    async def _read_redirect_head(u: str) -> Optional[str]:
-        async with session.head(u, headers=headers, allow_redirects=False) as resp:
+    async def _attempt(url: str, method: str, range_hdr: Optional[str]) -> Optional[str]:
+        h = dict(headers)
+        if range_hdr:
+            h["Range"] = range_hdr
+        if method.upper() == "HEAD":
+            async with session.head(url, headers=h, allow_redirects=False) as resp:
+                return _loc_from(resp)
+        async with session.get(url, headers=h, allow_redirects=False) as resp:
             return _loc_from(resp)
 
-    async def _read_redirect_get(u: str) -> Optional[str]:
-        gh = {**headers, "Range": "bytes=0-0"}
-        async with session.get(u, headers=gh, allow_redirects=False) as resp:
-            return _loc_from(resp)
+    # Browser uses ...mp4/?rnd=timestamp ; also try ...mp4?rnd= without slash before ?
+    url_forms = (
+        lambda rnd: f"{base}/?rnd={rnd}",
+        lambda rnd: f"{base}?rnd={rnd}",
+    )
+    attempts: list[tuple[str, str, Optional[str]]] = []
+    for mk in url_forms:
+        rnd = int(time.time() * 1000)
+        u = mk(rnd)
+        attempts.extend(
+            [
+                (u, "HEAD", None),
+                (u, "GET", "bytes=0-"),
+                (u, "GET", "bytes=0-0"),
+            ]
+        )
 
-    async def try_urls(u: str, reader: Any) -> Optional[str]:
-        candidates = (u,) if u.endswith("/") else (u, u + "/")
-        for candidate in candidates:
-            try:
-                loc = await asyncio.wait_for(reader(candidate), timeout=_TIMEOUT_SEC)
-                if loc:
-                    return loc
-            except (asyncio.TimeoutError, Exception):
-                continue
-        return None
-
-    loc = await try_urls(get_file_url, _read_redirect_head)
-    if loc:
-        return loc
-    loc = await try_urls(get_file_url, _read_redirect_get)
-    return loc
+    for url, method, rng in attempts:
+        try:
+            loc = await asyncio.wait_for(_attempt(url, method, rng), timeout=_TIMEOUT_SEC)
+            if loc:
+                return loc
+        except (asyncio.TimeoutError, Exception):
+            continue
+    return None
 
 
-async def _resolve_video_streams_to_remote_playable(video: dict[str, Any]) -> None:
+async def _resolve_video_streams_to_remote_playable(video: dict[str, Any], *, referer: str) -> None:
     streams: list[dict[str, str]] = video.get("streams") or []
     mp4 = [s for s in streams if s.get("format") == "mp4" and "get_file" in (s.get("url") or "")]
     if not mp4:
         return
 
     async def resolve_one(s: dict[str, str]) -> tuple[dict[str, str], Optional[str]]:
-        u = await _get_file_to_remote_playable(s["url"])
+        u = await _get_file_to_remote_playable(s["url"], referer=referer)
         return (s, u)
 
     resolved = await asyncio.gather(*[resolve_one(s) for s in mp4])
@@ -345,7 +362,10 @@ async def scrape(url: str) -> dict[str, Any]:
     data = parse_video_page(html, url)
     v = data.get("video")
     if isinstance(v, dict) and v.get("streams"):
-        await _resolve_video_streams_to_remote_playable(v)
+        page_ref = str(url).strip()
+        if page_ref and not page_ref.endswith("/"):
+            page_ref = page_ref + "/"
+        await _resolve_video_streams_to_remote_playable(v, referer=page_ref)
     return data
 
 
