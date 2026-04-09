@@ -289,7 +289,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://oppai.stream/",
         nickname="Oppai",
-        favicon="https://oppai.stream/assets/logo/favicon-32x32.png",
+        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/oppai.png",
         accentColor="#C3083F",
         category="hentai",
         isVerified=False,
@@ -302,7 +302,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://xmoviesforyou.com/",
         nickname="XMoviesForYou",
-        favicon="https://xmoviesforyou.com/favicon.ico",
+        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/xmovies.ico",
         accentColor="#8E24AA",
         category="porn",
         isVerified=False,
@@ -348,7 +348,7 @@ EXPLORE_SOURCES = [
         hasCategories=True,
         searchUrlTemplate="",
         sourceId="cg51",
-        disable=False,
+        disable=True,
         pageSize=20,
     ),
 ]
