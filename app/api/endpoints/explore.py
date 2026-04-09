@@ -211,7 +211,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://hornysimp.com/",
         nickname="HornySimp",
-        favicon="https://hornysimp.com/favicon.ico",
+        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/hornysimp.png",
         accentColor="#607D8B",
         category="porn",
         isVerified=False,
