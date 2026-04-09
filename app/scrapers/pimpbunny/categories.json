@@ -1,5 +1,8 @@
 [
   { "id": "videos", "name": "Most recent", "url": "https://pimpbunny.com/videos/" },
+  { "id": "most-viewed", "name": "Most Viewed", "url": "https://pimpbunny.com/videos/?videos_per_page=32&sort_by=video_viewed" },
+  { "id": "top-rated", "name": "Top Rated", "url": "https://pimpbunny.com/videos/?videos_per_page=32&sort_by=rating" },
+  { "id": "exclusive", "name": "Exclusive", "url": "https://pimpbunny.com/categories/exclusive/" },
   { "id": "bbc", "name": "BBC", "url": "https://pimpbunny.com/categories/bbc/" },
   { "id": "anal", "name": "Anal", "url": "https://pimpbunny.com/categories/anal/" },
   { "id": "deep-throat", "name": "Deep throat", "url": "https://pimpbunny.com/categories/deep-throat/" },
