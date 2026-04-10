@@ -4,7 +4,7 @@ Extract and serve video streaming URLs
 """
 
 from fastapi import HTTPException
-from typing import Optional
+from typing import Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -333,8 +333,12 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
         "tnaflix.com" in parsed_url.netloc.lower() or
         "hornysimp.com" in parsed_url.netloc.lower() or
         "pimpbunny.com" in parsed_url.netloc.lower()):
-        qualities = {}
+        qualities: dict[str, Any] = {}
         all_streams = video_data.get("streams", [])
+        host_l = parsed_url.netloc.lower()
+        per_stream_format_keys = (
+            "xmoviesforyou.com" in host_l or "xxxparodyhd.net" in host_l
+        )
         
         # Debug logging for RedTube
         if "redtube.com" in parsed_url.netloc.lower():
@@ -356,6 +360,12 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
                 quality_label = f"{quality_label}p"
                 
             qualities[quality_label] = s.get("url")
+            if per_stream_format_keys:
+                sf = s.get("format")
+                if sf is not None and str(sf).strip():
+                    if str(sf).lower() == "default":
+                        sf = "embed"
+                    qualities[f"{quality_label}_format"] = sf
         
         if "redtube.com" in parsed_url.netloc.lower():
             logger.info(f"RedTube: Found {len(qualities)} HLS quality streams")
