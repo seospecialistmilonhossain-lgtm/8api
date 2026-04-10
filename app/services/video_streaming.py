@@ -269,6 +269,9 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
     
     if selected_stream and selected_stream.get("format"):
         fmt = selected_stream["format"]
+        # Preferred mirror is tagged "default" in some scrapers; playback is still embed/WebView.
+        if str(fmt).lower() == "default":
+            fmt = "embed"
     elif ".m3u8" in stream_url:
         fmt = "hls"
         if selected_quality == "default":

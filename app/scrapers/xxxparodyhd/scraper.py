@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import re
 import os
+import re
 from typing import Any, Optional
 
 from bs4 import BeautifulSoup
@@ -117,6 +117,11 @@ def parse_page(html: str, url: str) -> dict[str, Any]:
                 "quality": embed.get("label", f"Player {idx + 1}"),
                 "format": "embed",
             })
+        if video_url:
+            for s in streams:
+                if s.get("url") == video_url:
+                    s["format"] = "default"
+                    break
 
     # Tags / Genres
     tags = []
@@ -223,11 +228,11 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 20) -> list[dic
     elif not target_url.endswith("/") and "?" not in target_url:
         target_url += "/"
 
-    import aiohttp
     try:
         html = await fetch_html(target_url)
-    except aiohttp.ClientResponseError as e:
-        if e.status == 404:
+    except Exception as e:
+        # ClientResponseError from aiohttp raise_for_status() exposes .status
+        if getattr(e, "status", None) == 404:
             return []
         raise
 

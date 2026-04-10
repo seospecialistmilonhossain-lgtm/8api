@@ -108,7 +108,10 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
             return "mixdrop"
         if "DOOD" in t or "DOODSTREAM" in t or "dood" in h or "playmogo.com" in h:
             return "doodstream"
-        return "embed"
+        # Avoid literal "embed" — it collides in flat quality maps and triggers wrong client branches.
+        if h and "." in h:
+            return h.split(".")[0]
+        return "mirror"
 
     # Primary path: provider buttons block on detail page:
     # <div class="flex flex-wrap gap-4 mb-8"> ... <a href="https://...">STREAMTAPE</a> ...
@@ -185,6 +188,8 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
         )
 
     default_url = streams[0]["url"] if streams else None
+    if streams:
+        streams[0]["format"] = "default"
     return streams, default_url
 
 
