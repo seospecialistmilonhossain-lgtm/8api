@@ -32,7 +32,7 @@ from fastapi import APIRouter
 
 # Scrapers & Models
 from app.scrapers import masa49, xhamster, xnxx, xvideos, pornhub, youporn, redtube, beeg, spankbang, fapnut, pornxp, hqporner, xxxparodyhd, pornwex, tube8, pornhat, brazzpw, gosexpod, watcherotic, rule34video, haho, hanime, rouvideo, cg51, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny
-from app.models.schemas import ScrapeResponse, ListItem, CategoryItem, ScrapeRequest, ListRequest
+from app.models.schemas import ScrapeResponse, VideoInfoResponse, ListItem, CategoryItem, ScrapeRequest, ListRequest
 
 logging.basicConfig(level=logging.INFO)
 
@@ -345,7 +345,7 @@ async def global_trending_endpoint(
 # --- Video Streaming Info ---
 from app.services.video_streaming import get_video_info, get_stream_url
 
-@api_v1_router.get("/videos/info", response_model=ScrapeResponse, response_model_exclude_none=True, tags=["Streaming"])
+@api_v1_router.get("/videos/info", response_model=VideoInfoResponse, response_model_exclude_none=True, tags=["Streaming"])
 async def video_info_endpoint(request: Request, url: str = Query(..., description="Video page URL")):
     from app.config.settings import settings
     api_base = settings.BASE_URL or str(request.base_url)

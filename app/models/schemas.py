@@ -1,7 +1,7 @@
 # Pydantic Schemas for Request/Response Validation
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 
 
@@ -88,6 +88,15 @@ class ScrapeResponse(BaseModel):
     tags: Optional[list[str]] = None
     upload_date: Optional[str] = None
     cached: bool = False  # Indicates if result came from cache
+
+
+class VideoInfoResponse(ScrapeResponse):
+    """GET /api/v1/videos/info — includes stream metadata omitted from ScrapeResponse."""
+
+    preview_url: Optional[str] = None
+    related_videos: list[dict[str, Any]] = Field(default_factory=list)
+    video: dict[str, Any]
+    playable: bool = True
 
 
 class ListItem(BaseModel):
