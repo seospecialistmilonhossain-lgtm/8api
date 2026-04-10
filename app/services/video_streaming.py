@@ -340,6 +340,7 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
             "xmoviesforyou.com" in host_l
             or "xxxparodyhd.net" in host_l
             or "hornysimp.com" in host_l
+            or "pimpbunny.com" in host_l
         )
         
         # Debug logging for RedTube

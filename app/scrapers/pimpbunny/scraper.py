@@ -158,7 +158,8 @@ def _extract_streams(html: str) -> dict[str, Any]:
         emb = m.group(0)
         if not embed_seen:
             embed_seen = True
-            streams.append({"quality": "embed", "url": emb, "format": "embed"})
+            # quality key matches flat API field `pimpbunny` + `pimpbunny_format` (see video_streaming)
+            streams.append({"quality": "pimpbunny", "url": emb, "format": "embed"})
         break
 
     def _score(s: dict[str, str]) -> int:
