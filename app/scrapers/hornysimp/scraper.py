@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
@@ -152,16 +153,65 @@ def _is_probable_ad_iframe(src: str) -> bool:
     return any(x in s for x in ("trudigo.com/banner", "googlesyndication", "doubleclick", "adservice"))
 
 
-def _embed_quality_label(idx: int) -> str:
+def _quality_from_embed_url(url: str) -> str:
+    """Stable short labels for HornySimp mirrors (matches player origin, not \"Server 1\" tabs)."""
+    low = (url or "").lower()
+    if "byseraguci.com" in low:
+        return "byseraguci"
+    if "hrnyvid" in low:
+        return "hrnyvid"
+    if "lulu" in low:
+        return "lulu"
+    host = urlparse(url).netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host.split(".")[0] if host else "embed"
+
+
+def _qualities_for_embed_urls(urls: list[str]) -> list[str]:
+    """Unique quality keys when the same host appears more than once."""
+    counts: dict[str, int] = {}
+    out: list[str] = []
+    for u in urls:
+        base = _quality_from_embed_url(u)
+        n = counts.get(base, 0)
+        counts[base] = n + 1
+        out.append(base if n == 0 else f"{base}_{n + 1}")
+    return out
+
+
+def _collect_embed_iframe_srcs(soup: BeautifulSoup) -> list[str]:
     """
-    Match HornySimp UI: `.hscp-tab-button` labels "Server 1" / "Server 2".
-    Same shape as xxxparodyhd: `quality` is a human label, `format` is `embed`.
+    Prefer players inside `.hscp-video-container` so ad iframes elsewhere on the page
+    are never mixed in. Fall back to document-wide iframes.
     """
-    return f"Server {idx + 1}"
+
+    def gather_from(root: Any) -> list[str]:
+        found: list[str] = []
+        if root is None:
+            return found
+        for iframe in root.select("iframe[src]"):
+            src = (iframe.get("src") or "").strip()
+            if not src:
+                continue
+            if src.startswith("//"):
+                src = f"https:{src}"
+            if not src.startswith("http"):
+                continue
+            if _is_probable_ad_iframe(src):
+                continue
+            found.append(src)
+        return found
+
+    container = soup.select_one(".hscp-video-container")
+    embed_urls = gather_from(container) if container else []
+    if not embed_urls:
+        embed_urls = gather_from(soup)
+    return list(dict.fromkeys(embed_urls))
 
 
 def _default_embed_url(embed_urls: list[str]) -> str | None:
-    """Prefer Byse (`byseraguci.com`) — HornySimp \"Server 2\" — as default when present."""
+    """Prefer Byse (`byseraguci.com`) as default when present, else hrnyvid / Lulu, else first."""
     if not embed_urls:
         return None
     for u in embed_urls:
@@ -191,25 +241,13 @@ def parse_video_page(html: str, url: str) -> dict[str, Any]:
     if thumbnail and thumbnail.startswith("//"):
         thumbnail = f"https:{thumbnail}"
 
-    # Collect embed iframes (players)
-    embed_urls: list[str] = []
-    for iframe in soup.select("iframe[src]"):
-        src = (iframe.get("src") or "").strip()
-        if not src:
-            continue
-        if src.startswith("//"):
-            src = f"https:{src}"
-        if not src.startswith("http"):
-            continue
-        if _is_probable_ad_iframe(src):
-            continue
-        embed_urls.append(src)
-    embed_urls = list(dict.fromkeys(embed_urls))
+    embed_urls = _collect_embed_iframe_srcs(soup)
+    quality_labels = _qualities_for_embed_urls(embed_urls)
 
-    # Same pattern as xxxparodyhd: multiple `format: embed` streams with human labels (Server 1 / Server 2).
+    # Same pattern as xxxparodyhd: multiple `format: embed` streams; quality = mirror name (hrnyvid, byseraguci, …).
     streams: list[dict[str, str]] = []
-    for idx, e in enumerate(embed_urls):
-        streams.append({"url": e, "quality": _embed_quality_label(idx), "format": "embed"})
+    for e, q in zip(embed_urls, quality_labels):
+        streams.append({"url": e, "quality": q, "format": "embed"})
 
     default_url = _default_embed_url(embed_urls)
 

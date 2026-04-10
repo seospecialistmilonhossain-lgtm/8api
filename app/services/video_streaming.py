@@ -337,7 +337,9 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
         all_streams = video_data.get("streams", [])
         host_l = parsed_url.netloc.lower()
         per_stream_format_keys = (
-            "xmoviesforyou.com" in host_l or "xxxparodyhd.net" in host_l
+            "xmoviesforyou.com" in host_l
+            or "xxxparodyhd.net" in host_l
+            or "hornysimp.com" in host_l
         )
         
         # Debug logging for RedTube
