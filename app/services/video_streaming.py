@@ -269,9 +269,6 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
     
     if selected_stream and selected_stream.get("format"):
         fmt = selected_stream["format"]
-        # Preferred mirror is tagged "default" in some scrapers; playback is still embed/WebView.
-        if str(fmt).lower() == "default":
-            fmt = "embed"
     elif ".m3u8" in stream_url:
         fmt = "hls"
         if selected_quality == "default":
@@ -333,7 +330,8 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
         "tnaflix.com" in parsed_url.netloc.lower() or
         "hornysimp.com" in parsed_url.netloc.lower() or
         "pimpbunny.com" in parsed_url.netloc.lower()):
-        qualities = {}
+        qualities: dict[str, str] = {}
+        mirror_formats: dict[str, str] = {}
         all_streams = video_data.get("streams", [])
         
         # Debug logging for RedTube
@@ -356,6 +354,7 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
                 quality_label = f"{quality_label}p"
                 
             qualities[quality_label] = s.get("url")
+            mirror_formats[quality_label] = str(s.get("format") or "mp4").lower()
         
         if "redtube.com" in parsed_url.netloc.lower():
             logger.info(f"RedTube: Found {len(qualities)} HLS quality streams")
@@ -363,5 +362,6 @@ async def get_stream_url(url: str, quality: str = "default", api_base_url: str =
         # Add qualities as flat fields in response
         for quality_label, quality_url in qualities.items():
             response[quality_label] = quality_url
+        response["mirror_formats"] = mirror_formats
             
     return response
