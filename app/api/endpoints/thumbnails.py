@@ -1,11 +1,58 @@
 from fastapi import APIRouter, HTTPException, Query, Response, Request
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 import logging
+import re
 
 import httpx
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Match our thumbnail proxy path so we never fetch ourselves (avoids infinite HTTP recursion).
+_PROXY_PATH_RE = re.compile(r"/thumbnails/proxy(?:\?|$|/)", re.IGNORECASE)
+_PROXY_PATH_ENCODED_RE = re.compile(r"thumbnails%2fproxy(?:%3f|\?|$)", re.IGNORECASE)
+
+
+def _targets_thumbnail_proxy_endpoint(target_url: str) -> bool:
+    """
+    True if the URL is (or repeatedly URL-decodes to) this app's thumbnail proxy.
+    Prevents httpx from calling back into the same endpoint and looping.
+    """
+    if not target_url or not target_url.strip():
+        return False
+    current = target_url.strip()
+    seen: set[str] = set()
+    for _ in range(8):
+        if current in seen:
+            break
+        seen.add(current)
+        low = current.lower()
+        if _PROXY_PATH_RE.search(low):
+            return True
+        if _PROXY_PATH_ENCODED_RE.search(low.replace("%2F", "%2f")):
+            return True
+        try:
+            parsed = urlparse(current)
+            path = (parsed.path or "").lower()
+            if path.rstrip("/").endswith("/thumbnails/proxy"):
+                return True
+        except Exception:
+            pass
+        try:
+            nxt = unquote(current)
+        except Exception:
+            break
+        if nxt == current:
+            break
+        current = nxt
+    return False
+
+
+def _is_already_wrapped_thumbnail_url(url: str) -> bool:
+    """Avoid nesting /api/v1/thumbnails/proxy?url=... inside another proxy query."""
+    if not url:
+        return False
+    return _targets_thumbnail_proxy_endpoint(url)
 
 @router.get("/proxy", summary="Thumbnail Proxy")
 async def thumbnail_proxy(
@@ -19,7 +66,14 @@ async def thumbnail_proxy(
     """
     if not url:
         raise HTTPException(status_code=400, detail="Missing URL")
-    
+
+    if _targets_thumbnail_proxy_endpoint(url):
+        logger.warning("Thumbnail proxy refused recursive/self target url=%r", url[:500])
+        raise HTTPException(
+            status_code=400,
+            detail="Refusing to proxy a thumbnail-proxy URL (would loop)",
+        )
+
     url_lower = url.lower()
     is_hqporner = "hqporner.com" in url_lower
     is_youporn = any(x in url_lower for x in ["ypncdn.com", "youporn.com"])
@@ -64,6 +118,7 @@ async def thumbnail_proxy(
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(15.0),
             follow_redirects=True,
+            max_redirects=8,
         ) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code >= 400:
@@ -103,7 +158,10 @@ def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
     """Helper to wrap specific thumbnails in the proxy URL."""
     if not url:
         return url
-        
+
+    if _is_already_wrapped_thumbnail_url(url):
+        return url
+
     url_lower = url.lower()
     is_hqporner = "hqporner.com" in url_lower
     is_youporn = any(x in url_lower for x in ["ypncdn.com", "youporn.com"])
@@ -121,8 +179,4 @@ def wrap_thumbnail_url(url: str, api_base_url: str) -> str:
         if "/plain/" not in url_lower:
             return url
 
-    # If already proxied, don't double wrap
-    if "/thumbnails/proxy?url=" in url_lower:
-        return url
-        
     return f"{api_base_url.rstrip('/')}/api/v1/thumbnails/proxy?url={quote(url)}"
