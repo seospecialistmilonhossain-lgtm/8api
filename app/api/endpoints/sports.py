@@ -271,10 +271,8 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
         absolute = _to_absolute_data_url(absolute)
 
     lower = absolute.lower()
-    is_pro_json = lower.endswith(".json") and (
-        "/data/pro/" in lower or "/data/prohigh/" in lower or "/pro/" in lower or "/prohigh/" in lower
-    )
-    if not is_pro_json:
+    is_json = lower.endswith(".json")
+    if not is_json:
         return {"status": "success", "url": absolute, "urls": [absolute], "isResolved": False}
 
     try:
@@ -290,16 +288,46 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail=f"Upstream HTTP {resp.status_code}")
         payload = resp.json()
-        links_token = str(payload.get("links", "")).strip() if isinstance(payload, dict) else ""
-        if not links_token:
-            return {"status": "success", "url": absolute, "urls": [], "isResolved": True}
-        decoded = _decode_token(links_token)
-        urls = _decode_to_urls(decoded)
+        urls: list[str] = []
+
+        # pro/prohigh/event payload: {"links":"..."}
+        if isinstance(payload, dict):
+            links_token = str(payload.get("links", "")).strip()
+            if links_token:
+                decoded = _decode_token(links_token)
+                urls.extend(_decode_to_urls(decoded))
+
+        # channels payload: [{"channel":"..."}]
+        if isinstance(payload, list):
+            for entry in payload:
+                if not isinstance(entry, dict):
+                    continue
+                token = str(entry.get("channel", "")).strip()
+                if not token:
+                    continue
+                decoded = _decode_token(token)
+                urls.extend(_decode_to_urls(decoded))
+                # Some channel entries expose nested pro/prohigh JSON in "links".
+                if isinstance(decoded, dict):
+                    nested_links = decoded.get("links")
+                    if isinstance(nested_links, str) and nested_links.strip():
+                        urls.append(_to_absolute_data_url(nested_links))
+                    elif isinstance(nested_links, list):
+                        for nested in nested_links:
+                            if isinstance(nested, str) and nested.strip():
+                                urls.append(_to_absolute_data_url(nested))
+
+        # dedupe while preserving order
+        deduped_urls: list[str] = []
+        for u in urls:
+            if u not in deduped_urls:
+                deduped_urls.append(u)
+
         return {
             "status": "success",
             "url": absolute,
-            "urls": urls,
-            "resolved_url": urls[0] if urls else None,
+            "urls": deduped_urls,
+            "resolved_url": deduped_urls[0] if deduped_urls else None,
             "isResolved": True,
         }
     except HTTPException:
