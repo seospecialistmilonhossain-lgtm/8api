@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.core import cache
 from app.models.sports_models import SportsDataPayload, SportsDataResponse
@@ -153,6 +153,36 @@ def _extract_maps(decoded: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _extract_urls(text: str) -> list[str]:
+    urls = re.findall(r"(https?://[^\s\"']+|rtmp://[^\s\"']+)", text, flags=re.IGNORECASE)
+    # preserve order, unique
+    deduped: list[str] = []
+    for u in urls:
+        if u not in deduped:
+            deduped.append(u.strip())
+    return deduped
+
+
+def _decode_to_urls(decoded: Any) -> list[str]:
+    urls: list[str] = []
+    if isinstance(decoded, str):
+        urls.extend(_extract_urls(decoded))
+    elif isinstance(decoded, dict):
+        for k in ("stream_url", "url", "play_url", "link", "hls_url", "m3u8"):
+            v = decoded.get(k)
+            if isinstance(v, str) and v.strip():
+                urls.append(v.strip())
+    elif isinstance(decoded, list):
+        for it in decoded:
+            urls.extend(_decode_to_urls(it))
+    # dedupe
+    out: list[str] = []
+    for u in urls:
+        if u not in out:
+            out.append(u)
+    return out
+
+
 async def _build_sports_payload() -> SportsDataPayload:
     async with httpx.AsyncClient(timeout=20.0) as client:
         res = await client.get(
@@ -211,3 +241,93 @@ async def get_sports_data() -> SportsDataResponse:
     response = SportsDataResponse(data=payload)
     await cache.set(SPORTS_CACHE_KEY, response.model_dump(), ttl_seconds=300)
     return response
+
+
+@router.get("/sports/resolve-link", tags=["Sports"])
+async def resolve_sports_link(url: str = Query(..., description="Sports stream or pro/prohigh json URL")) -> dict[str, Any]:
+    absolute = url.strip()
+    if not absolute.startswith("http://") and not absolute.startswith("https://"):
+        absolute = f"https://gbplayer.cc/data/{absolute.lstrip('/')}"
+
+    lower = absolute.lower()
+    is_pro_json = lower.endswith(".json") and (
+        "/data/pro/" in lower or "/data/prohigh/" in lower or "/pro/" in lower or "/prohigh/" in lower
+    )
+    if not is_pro_json:
+        return {"status": "success", "url": absolute, "urls": [absolute], "isResolved": False}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                absolute,
+                headers={
+                    "User-Agent": "okhttp/4.12.0",
+                    "Accept-Encoding": "gzip",
+                    "Connection": "Keep-Alive",
+                },
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"Upstream HTTP {resp.status_code}")
+        payload = resp.json()
+        links_token = str(payload.get("links", "")).strip() if isinstance(payload, dict) else ""
+        if not links_token:
+            return {"status": "success", "url": absolute, "urls": [], "isResolved": True}
+        decoded = _decode_token(links_token)
+        urls = _decode_to_urls(decoded)
+        return {
+            "status": "success",
+            "url": absolute,
+            "urls": urls,
+            "resolved_url": urls[0] if urls else None,
+            "isResolved": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to resolve sports link: {exc}") from exc
+
+
+@router.get("/sports/channels", tags=["Sports"])
+async def get_sports_channels(url: str = Query(..., description="Channels json url")) -> dict[str, Any]:
+    absolute = url.strip()
+    if not absolute.startswith("http://") and not absolute.startswith("https://"):
+        absolute = f"https://gbplayer.cc/data/{absolute.lstrip('/')}"
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(
+                absolute,
+                headers={
+                    "User-Agent": "okhttp/4.12.0",
+                    "Accept-Encoding": "gzip",
+                    "Connection": "Keep-Alive",
+                },
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"Upstream HTTP {resp.status_code}")
+
+        payload = resp.json()
+        if not isinstance(payload, list):
+            raise HTTPException(status_code=502, detail="Channels payload is not a list")
+
+        items: list[dict[str, Any]] = []
+        for entry in payload:
+            if not isinstance(entry, dict):
+                continue
+            token = str(entry.get("channel", "")).strip()
+            if not token:
+                continue
+            decoded = _decode_token(token)
+            if isinstance(decoded, dict):
+                items.append(decoded)
+            elif isinstance(decoded, str):
+                urls = _extract_urls(decoded)
+                if urls:
+                    title = decoded.splitlines()[0].strip() if decoded.splitlines() else "Channel"
+                    items.append({"title": title, "stream_url": urls[0]})
+
+        return {"status": "success", "url": absolute, "items": items}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to load channels: {exc}") from exc
