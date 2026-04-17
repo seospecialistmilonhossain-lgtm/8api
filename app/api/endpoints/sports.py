@@ -189,7 +189,7 @@ def _decode_to_urls(decoded: Any) -> list[str]:
     if isinstance(decoded, str):
         urls.extend(_extract_urls(decoded))
     elif isinstance(decoded, dict):
-        for k in ("stream_url", "url", "play_url", "link", "links", "hls_url", "m3u8"):
+        for k in ("stream_url", "url", "play_url", "link", "hls_url", "m3u8"):
             v = decoded.get(k)
             if isinstance(v, str) and v.strip():
                 urls.append(v.strip())
@@ -201,53 +201,6 @@ def _decode_to_urls(decoded: Any) -> list[str]:
     for u in urls:
         if u not in out:
             out.append(u)
-    return out
-
-
-def _is_pro_like_json_url(url: str) -> bool:
-    lower = url.lower()
-    return lower.endswith(".json") and (
-        "/data/pro/" in lower or "/data/prohigh/" in lower or "/pro/" in lower or "/prohigh/" in lower
-    )
-
-
-async def _resolve_playable_urls(url: str, depth: int = 0) -> list[str]:
-    if depth > 2:
-        return []
-    absolute = url.strip()
-    if not absolute:
-        return []
-    if not absolute.startswith("http://") and not absolute.startswith("https://"):
-        absolute = _to_absolute_data_url(absolute)
-
-    if not _is_pro_like_json_url(absolute):
-        return [absolute]
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(
-            absolute,
-            headers={
-                "User-Agent": "okhttp/4.12.0",
-                "Accept-Encoding": "gzip",
-                "Connection": "Keep-Alive",
-            },
-        )
-    if resp.status_code != 200:
-        return []
-
-    payload = resp.json()
-    links_token = str(payload.get("links", "")).strip() if isinstance(payload, dict) else ""
-    if not links_token:
-        return []
-
-    decoded = _decode_token(links_token)
-    urls = _decode_to_urls(decoded)
-    out: list[str] = []
-    for candidate in urls:
-        nested = await _resolve_playable_urls(candidate, depth + 1)
-        for item in nested:
-            if item not in out:
-                out.append(item)
     return out
 
 
@@ -318,7 +271,9 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
         absolute = _to_absolute_data_url(absolute)
 
     lower = absolute.lower()
-    is_pro_json = _is_pro_like_json_url(lower)
+    is_pro_json = lower.endswith(".json") and (
+        "/data/pro/" in lower or "/data/prohigh/" in lower or "/pro/" in lower or "/prohigh/" in lower
+    )
     is_channels_json = lower.endswith(".json") and ("/data/channels/" in lower or "/channels/" in lower)
     if not is_pro_json and not is_channels_json:
         return {"status": "success", "url": absolute, "urls": [absolute], "isResolved": False}
@@ -349,28 +304,13 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
                         continue
                     decoded = _decode_token(token)
                     decoded_urls = _decode_to_urls(decoded)
-                    fully_resolved_urls: list[str] = []
                     for stream_url in decoded_urls:
-                        nested = await _resolve_playable_urls(stream_url)
-                        for u in nested:
-                            if u not in fully_resolved_urls:
-                                fully_resolved_urls.append(u)
-                    for stream_url in fully_resolved_urls:
                         if stream_url not in urls:
                             urls.append(stream_url)
                     if isinstance(decoded, dict):
                         item = dict(decoded)
-                        links_value = item.get("links")
-                        if isinstance(links_value, str) and links_value.strip():
-                            item["links"] = _to_absolute_data_url(links_value)
-                        elif isinstance(links_value, list):
-                            item["links"] = [
-                                _to_absolute_data_url(v) if isinstance(v, str) else v for v in links_value
-                            ]
-                        if fully_resolved_urls:
-                            item["resolved_urls"] = fully_resolved_urls
-                            if "stream_url" not in item:
-                                item["stream_url"] = fully_resolved_urls[0]
+                        if decoded_urls and "stream_url" not in item:
+                            item["stream_url"] = decoded_urls[0]
                         items.append(item)
             return {
                 "status": "success",
