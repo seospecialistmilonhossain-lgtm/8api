@@ -184,6 +184,34 @@ def _extract_urls(text: str) -> list[str]:
     return deduped
 
 
+def _is_valid_stream_url(value: str) -> bool:
+    v = value.strip()
+    if not v:
+        return False
+    lower = v.lower()
+    if lower in {"http", "https", "http:", "https:", "http:/", "https:/"}:
+        return False
+    if lower.endswith(".mpd") or ".mpd?" in lower:
+        return False
+    if not (lower.startswith("http://") or lower.startswith("https://") or lower.startswith("rtmp://")):
+        return False
+    parts = v.split("://", 1)
+    if len(parts) != 2 or not parts[1].strip("/"):
+        return False
+    return True
+
+
+def _filter_stream_urls(urls: list[str]) -> list[str]:
+    out: list[str] = []
+    for u in urls:
+        v = u.strip()
+        if not _is_valid_stream_url(v):
+            continue
+        if v not in out:
+            out.append(v)
+    return out
+
+
 def _decode_to_urls(decoded: Any) -> list[str]:
     urls: list[str] = []
     if isinstance(decoded, str):
@@ -201,7 +229,7 @@ def _decode_to_urls(decoded: Any) -> list[str]:
     for u in urls:
         if u not in out:
             out.append(u)
-    return out
+    return _filter_stream_urls(out)
 
 
 async def _build_sports_payload() -> SportsDataPayload:
@@ -281,7 +309,14 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
     )
     is_channels_json = lower.endswith(".json") and ("/data/channels/" in lower or "/channels/" in lower)
     if not is_pro_json and not is_channels_json:
-        return {"status": "success", "url": absolute, "urls": [absolute], "isResolved": False}
+        direct_urls = _filter_stream_urls([absolute])
+        return {
+            "status": "success",
+            "url": absolute,
+            "urls": direct_urls,
+            "resolved_url": direct_urls[0] if direct_urls else None,
+            "isResolved": False,
+        }
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -317,6 +352,7 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
                         if decoded_urls and "stream_url" not in item:
                             item["stream_url"] = decoded_urls[0]
                         items.append(item)
+            urls = _filter_stream_urls(urls)
             return {
                 "status": "success",
                 "url": absolute,
@@ -330,7 +366,7 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
         if not links_token:
             return {"status": "success", "url": absolute, "urls": [], "isResolved": True}
         decoded = _decode_token(links_token)
-        urls = _decode_to_urls(decoded)
+        urls = _filter_stream_urls(_decode_to_urls(decoded))
         return {
             "status": "success",
             "url": absolute,
