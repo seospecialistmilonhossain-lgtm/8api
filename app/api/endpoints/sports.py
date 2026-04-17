@@ -241,6 +241,11 @@ async def _build_sports_payload() -> SportsDataPayload:
         events.extend(_extract_maps(_decode_token(t)))
     for t in categories_tokens:
         categories.extend(_extract_maps(_decode_token(t)))
+    categories = [
+        c
+        for c in categories
+        if str(c.get("type", "")).strip().lower() != "custom"
+    ]
     for t in highlights_tokens:
         highlights.extend(_extract_maps(_decode_token(t)))
 
