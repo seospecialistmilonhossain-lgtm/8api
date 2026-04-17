@@ -14,6 +14,7 @@ from app.models.sports_models import SportsDataPayload, SportsDataResponse
 router = APIRouter()
 
 SPORTS_SOURCE_URL = "https://gbplayer.cc/data/app.json"
+SPORTS_DATA_BASE_URL = "https://gbplayer.cc/data/"
 SPORTS_CACHE_KEY = "sports:data:decoded"
 
 _PLAIN_ALPHA = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
@@ -147,10 +148,30 @@ def _parse_token_list(value: Any) -> list[str]:
 
 def _extract_maps(decoded: Any) -> list[dict[str, Any]]:
     if isinstance(decoded, dict):
-        return [decoded]
+        return [_normalize_map_links(decoded)]
     if isinstance(decoded, list):
-        return [item for item in decoded if isinstance(item, dict)]
+        return [_normalize_map_links(item) for item in decoded if isinstance(item, dict)]
     return []
+
+
+def _to_absolute_data_url(value: str) -> str:
+    link = value.strip()
+    if not link:
+        return link
+    if link.startswith("http://") or link.startswith("https://"):
+        return link
+    return f"{SPORTS_DATA_BASE_URL}{link.lstrip('/')}"
+
+
+def _normalize_map_links(item: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(item)
+    for key in ("links", "channel"):
+        value = normalized.get(key)
+        if isinstance(value, str):
+            normalized[key] = _to_absolute_data_url(value)
+        elif isinstance(value, list):
+            normalized[key] = [_to_absolute_data_url(v) if isinstance(v, str) else v for v in value]
+    return normalized
 
 
 def _extract_urls(text: str) -> list[str]:
@@ -247,7 +268,7 @@ async def get_sports_data() -> SportsDataResponse:
 async def resolve_sports_link(url: str = Query(..., description="Sports stream or pro/prohigh json URL")) -> dict[str, Any]:
     absolute = url.strip()
     if not absolute.startswith("http://") and not absolute.startswith("https://"):
-        absolute = f"https://gbplayer.cc/data/{absolute.lstrip('/')}"
+        absolute = _to_absolute_data_url(absolute)
 
     lower = absolute.lower()
     is_pro_json = lower.endswith(".json") and (
@@ -291,7 +312,7 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
 async def get_sports_channels(url: str = Query(..., description="Channels json url")) -> dict[str, Any]:
     absolute = url.strip()
     if not absolute.startswith("http://") and not absolute.startswith("https://"):
-        absolute = f"https://gbplayer.cc/data/{absolute.lstrip('/')}"
+        absolute = _to_absolute_data_url(absolute)
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
