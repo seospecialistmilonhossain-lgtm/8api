@@ -274,7 +274,8 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
     is_pro_json = lower.endswith(".json") and (
         "/data/pro/" in lower or "/data/prohigh/" in lower or "/pro/" in lower or "/prohigh/" in lower
     )
-    if not is_pro_json:
+    is_channels_json = lower.endswith(".json") and ("/data/channels/" in lower or "/channels/" in lower)
+    if not is_pro_json and not is_channels_json:
         return {"status": "success", "url": absolute, "urls": [absolute], "isResolved": False}
 
     try:
@@ -290,6 +291,36 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail=f"Upstream HTTP {resp.status_code}")
         payload = resp.json()
+
+        if is_channels_json:
+            urls: list[str] = []
+            items: list[dict[str, Any]] = []
+            if isinstance(payload, list):
+                for entry in payload:
+                    if not isinstance(entry, dict):
+                        continue
+                    token = str(entry.get("channel", "")).strip()
+                    if not token:
+                        continue
+                    decoded = _decode_token(token)
+                    decoded_urls = _decode_to_urls(decoded)
+                    for stream_url in decoded_urls:
+                        if stream_url not in urls:
+                            urls.append(stream_url)
+                    if isinstance(decoded, dict):
+                        item = dict(decoded)
+                        if decoded_urls and "stream_url" not in item:
+                            item["stream_url"] = decoded_urls[0]
+                        items.append(item)
+            return {
+                "status": "success",
+                "url": absolute,
+                "urls": urls,
+                "items": items,
+                "resolved_url": urls[0] if urls else None,
+                "isResolved": True,
+            }
+
         links_token = str(payload.get("links", "")).strip() if isinstance(payload, dict) else ""
         if not links_token:
             return {"status": "success", "url": absolute, "urls": [], "isResolved": True}
