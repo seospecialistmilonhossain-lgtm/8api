@@ -165,7 +165,7 @@ def _to_absolute_data_url(value: str) -> str:
 
 def _normalize_map_links(item: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(item)
-    for key in ("links", "channel"):
+    for key in ("links", "channel", "api"):
         value = normalized.get(key)
         if isinstance(value, str):
             normalized[key] = _to_absolute_data_url(value)
