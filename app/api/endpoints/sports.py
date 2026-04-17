@@ -310,11 +310,13 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
     is_channels_json = lower.endswith(".json") and ("/data/channels/" in lower or "/channels/" in lower)
     if not is_pro_json and not is_channels_json:
         direct_urls = _filter_stream_urls([absolute])
+        if not direct_urls:
+            direct_urls = ["https://no.link"]
         return {
             "status": "success",
             "url": absolute,
             "urls": direct_urls,
-            "resolved_url": direct_urls[0] if direct_urls else None,
+            "resolved_url": direct_urls[0],
             "isResolved": False,
         }
 
@@ -353,25 +355,29 @@ async def resolve_sports_link(url: str = Query(..., description="Sports stream o
                             item["stream_url"] = decoded_urls[0]
                         items.append(item)
             urls = _filter_stream_urls(urls)
+            if not urls:
+                urls = ["https://no.link"]
             return {
                 "status": "success",
                 "url": absolute,
                 "urls": urls,
                 "items": items,
-                "resolved_url": urls[0] if urls else None,
+                "resolved_url": urls[0],
                 "isResolved": True,
             }
 
         links_token = str(payload.get("links", "")).strip() if isinstance(payload, dict) else ""
         if not links_token:
-            return {"status": "success", "url": absolute, "urls": [], "isResolved": True}
+            return {"status": "success", "url": absolute, "urls": ["https://no.link"], "resolved_url": "https://no.link", "isResolved": True}
         decoded = _decode_token(links_token)
         urls = _filter_stream_urls(_decode_to_urls(decoded))
+        if not urls:
+            urls = ["https://no.link"]
         return {
             "status": "success",
             "url": absolute,
             "urls": urls,
-            "resolved_url": urls[0] if urls else None,
+            "resolved_url": urls[0],
             "isResolved": True,
         }
     except HTTPException:
