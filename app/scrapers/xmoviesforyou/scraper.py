@@ -260,54 +260,87 @@ def _build_list_page_url(base_url: str, page: int) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, new_path, "", "", ""))
 
 
+def _img_class_list(img: Any) -> list[str]:
+    c = img.get("class") if hasattr(img, "get") else None
+    if not c:
+        return []
+    if isinstance(c, str):
+        return c.split()
+    return list(c)
+
+
+def _element_has_cover_image(el: Any) -> bool:
+    if not hasattr(el, "select"):
+        return False
+    if el.select_one("img.object-cover") or el.select_one("img.mb-12"):
+        return True
+    for img in el.select("img"):
+        cls = _img_class_list(img)
+        if "object-cover" in cls or "mb-12" in cls:
+            return True
+    return False
+
+
 def _extract_thumb(container: BeautifulSoup | None) -> str | None:
     if not container:
         return None
-    # Site uses modern card images; prioritize likely "cover" images over logos/ads.
-    img = container.select_one("img.object-cover") or container.select_one("img.mb-12") or container.select_one("img")
-    if not img:
-        return None
-    src = (
-        img.get("data-src")
-        or img.get("data-lazy-src")
-        or img.get("data-original")
-        or img.get("data-srcset")
-        or img.get("srcset")
-        or img.get("src")
-    )
-    if not src:
-        return None
+    # Prefer card cover images (Tailwind: object-cover); avoid header logos (object-contain, h-10).
+    imgs: list[Any] = []
+    for img in container.select("img"):
+        cls = _img_class_list(img)
+        if "object-cover" in cls or "mb-12" in cls:
+            imgs.append(img)
+    if not imgs:
+        imgs = list(container.select("img"))
 
-    # srcset may contain multiple URLs: take the first URL token.
-    if " " in src and (".webp" in src or ".jpg" in src or ".png" in src):
-        src = src.split(",", 1)[0].strip().split(" ", 1)[0].strip()
+    for img in imgs:
+        cls = _img_class_list(img)
+        if "object-contain" in cls and "object-cover" not in cls:
+            continue
+        if "h-10" in cls and "w-auto" in cls:
+            continue
 
-    url = _abs_url(src)
-    if not url:
-        return None
+        src = (
+            img.get("data-src")
+            or img.get("data-lazy-src")
+            or img.get("data-original")
+            or img.get("data-srcset")
+            or img.get("srcset")
+            or img.get("src")
+        )
+        if not src:
+            continue
 
-    # Avoid returning site logo as thumbnail.
-    if url.rstrip("/").endswith("/logo.png"):
-        return None
+        # srcset may contain multiple URLs: take the first URL token.
+        if " " in src and (".webp" in src or ".jpg" in src or ".png" in src):
+            src = src.split(",", 1)[0].strip().split(" ", 1)[0].strip()
 
-    return url
+        url = _abs_url(src)
+        if not url:
+            continue
+        if url.rstrip("/").endswith("/logo.png"):
+            continue
+        return url
+
+    return None
 
 
 def _find_card_container(anchor: Any) -> Any | None:
     """
     On xmoviesforyou the title <a> is often nested in a small text-only div,
     while the thumbnail <img class="object-cover"> lives in a higher parent.
-    Walk up a few levels to find the wrapper that contains the real cover image.
+    The card link may also wrap both image and title — check the anchor itself,
+    then walk up to find the wrapper that contains the real cover image.
     """
-    node = anchor
+    node: Any = anchor
     for _ in range(18):
         if not node:
             break
+        if _element_has_cover_image(node):
+            return node
         parent = getattr(node, "parent", None)
         if not parent:
             break
-        if hasattr(parent, "select_one") and (parent.select_one("img.object-cover") or parent.select_one("img.mb-12")):
-            return parent
         node = parent
     return getattr(anchor, "parent", None)
 
@@ -317,7 +350,11 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    for a in soup.select("h1 a[href], h2 a[href], h3 a[href], h4 a[href]"):
+    # Prefer heading-based title links; listing pages may use plain text links instead (see fallback).
+    for a in soup.select(
+        "h1 a[href], h2 a[href], h3 a[href], h4 a[href], "
+        "article h1 a[href], article h2 a[href], article h3 a[href], article h4 a[href]"
+    ):
         href = _abs_url(a.get("href"))
         if not href or not _is_video_path(href) or href in seen:
             continue
@@ -358,15 +395,22 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
         if not text or text.lower().startswith("download"):
             continue
         seen.add(href)
+        container = _find_card_container(a)
+        thumb = _extract_thumb(container)
+        uploader = None
+        if container:
+            studio_a = container.select_one('a[href*="/studio/"]')
+            if studio_a:
+                uploader = _clean_text(studio_a.get_text(" ", strip=True))
         items.append(
             {
                 "url": href,
                 "title": text,
-                "thumbnail_url": None,
+                "thumbnail_url": thumb,
                 "duration": None,
                 "views": None,
                 "upload_date": _extract_date(text),
-                "uploader_name": None,
+                "uploader_name": uploader,
             }
         )
     return items[:limit]
