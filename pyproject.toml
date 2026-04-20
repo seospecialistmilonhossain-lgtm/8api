@@ -1,0 +1,6 @@
+# Pyright/Pylance: resolve third-party imports (e.g. pydantic_settings) from backend/.venv
+[tool.pyright]
+include = ["app"]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"

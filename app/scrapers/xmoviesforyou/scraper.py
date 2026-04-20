@@ -11,6 +11,23 @@ from bs4 import BeautifulSoup
 
 BASE = "https://xmoviesforyou.com"
 
+# Single-segment paths that look like posts but are hub/nav pages (not video detail URLs).
+_NON_VIDEO_PATH_SEGMENTS = frozenset(
+    {
+        "categories",
+        "tags",
+        "pornstars",
+        "studios",
+        "most-viewed",
+        "top-rated",
+        "random",
+        "dmca",
+        "contact",
+        "privacy-policy",
+        "terms",
+    }
+)
+
 
 def get_categories() -> list[dict[str, Any]]:
     """
@@ -73,11 +90,26 @@ def _is_video_path(url: str) -> bool:
     blocked_prefixes = ("tag/", "category/", "studio/", "pornstar/", "page/", "search")
     if any(path.startswith(x) for x in blocked_prefixes):
         return False
+    if "/" not in path:
+        first = path.split("/", 1)[0].lower()
+        if first in _NON_VIDEO_PATH_SEGMENTS:
+            return False
     return "/" not in path
 
 
 def _clean_text(s: str | None) -> str | None:
     t = (s or "").strip()
+    return t or None
+
+
+def _clean_card_title(s: str | None) -> str | None:
+    """Remove leaked UI/icon tokens from listing card link text."""
+    t = _clean_text(s)
+    if not t:
+        return None
+    t = re.sub(r"(?i)HD\s+play_circle\s+movie\s+", "HD ", t)
+    t = re.sub(r"(?i)\bplay_circle\b", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
     return t or None
 
 
@@ -200,7 +232,7 @@ def _related_from_page(soup: BeautifulSoup, current_url: str) -> list[dict[str, 
         href = _abs_url(a.get("href"))
         if not href or not _is_video_path(href) or href in seen:
             continue
-        text = _clean_text(a.get_text(" ", strip=True))
+        text = _clean_card_title(a.get_text(" ", strip=True))
         if not text:
             continue
         seen.add(href)
@@ -291,7 +323,7 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
             continue
         seen.add(href)
 
-        title = _clean_text(a.get_text(" ", strip=True)) or href.rstrip("/").split("/")[-1].replace("-", " ")
+        title = _clean_card_title(a.get_text(" ", strip=True)) or href.rstrip("/").split("/")[-1].replace("-", " ")
         container = _find_card_container(a)
         thumb = _extract_thumb(container)
         uploader = None
@@ -322,7 +354,7 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
         href = _abs_url(a.get("href"))
         if not href or not _is_video_path(href) or href in seen:
             continue
-        text = _clean_text(a.get_text(" ", strip=True))
+        text = _clean_card_title(a.get_text(" ", strip=True))
         if not text or text.lower().startswith("download"):
             continue
         seen.add(href)
