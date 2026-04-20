@@ -5,6 +5,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from app.core.static_assets import static_asset_url
 
 # Setup templates
 templates_dir = Path(__file__).parent / "templates"
@@ -20,7 +21,8 @@ async def not_found_handler(request: Request, exc):
             "status_code": 404,
             "message": "Page Not Found",
             "description": "The page you're looking for doesn't exist or has been moved.",
-            "detail": str(exc.detail) if hasattr(exc, 'detail') else None
+            "detail": str(exc.detail) if hasattr(exc, 'detail') else None,
+            "error_bg_url": static_asset_url("images/gif.gif"),
         },
         status_code=404
     )
@@ -35,7 +37,8 @@ async def internal_error_handler(request: Request, exc):
             "status_code": 500,
             "message": "Internal Server Error",
             "description": "Something went wrong on our end. We're working to fix it!",
-            "detail": str(exc) if not isinstance(exc, Exception) else "Server encountered an error"
+            "detail": str(exc) if not isinstance(exc, Exception) else "Server encountered an error",
+            "error_bg_url": static_asset_url("images/gif.gif"),
         },
         status_code=500
     )
@@ -65,7 +68,8 @@ async def general_exception_handler(request: Request, exc):
             "status_code": status_code,
             "message": message,
             "description": description,
-            "detail": detail
+            "detail": detail,
+            "error_bg_url": static_asset_url("images/gif.gif"),
         },
         status_code=status_code
     )

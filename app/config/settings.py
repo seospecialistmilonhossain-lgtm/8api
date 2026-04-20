@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = True
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
+
+    # Compression
+    ENABLE_GZIP: bool = True
+    GZIP_MIN_SIZE: int = 1024
     
     # Scraping
     SCRAPER_TIMEOUT: int = 30
@@ -45,6 +49,12 @@ class Settings(BaseSettings):
     # HLS Proxy
     HLS_PROXY_ENABLED: bool = True
     HLS_PROXY_TIMEOUT: int = 30
+
+    # Static/CDN
+    STATIC_CDN_BASE_URL: str = ""
+    STATIC_CACHE_MAX_AGE: int = 3600
+    STATIC_IMMUTABLE_MAX_AGE: int = 31536000
+    STATIC_IMMUTABLE_PATTERNS: list[str] = [r"\.[a-f0-9]{8,}\."]
     
     # API Auth
     REQUIRE_AUTH: bool = False
@@ -63,6 +73,26 @@ class Settings(BaseSettings):
                 return json.loads(v)
             except: pass
         return [i.strip() for i in v.split(",") if i.strip()]
+
+    @field_validator("STATIC_IMMUTABLE_PATTERNS", mode="after")
+    @classmethod
+    def parse_static_immutable_patterns(cls, v: Any) -> list[str]:
+        if isinstance(v, list):
+            return [str(item).strip() for item in v if str(item).strip()]
+        if not v:
+            return [r"\.[a-f0-9]{8,}\."]
+        if isinstance(v, str):
+            raw = v.strip()
+            if raw.startswith("[") and raw.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except:
+                    pass
+            return [item.strip() for item in raw.split(",") if item.strip()]
+        return [str(v).strip()]
 
     # Pydantic Configuration
     model_config = SettingsConfigDict(

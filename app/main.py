@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 import starlette.exceptions
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import asyncio
+import re
 # Logging
 import logging
 
@@ -71,8 +73,28 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
+if settings.ENABLE_GZIP:
+    app.add_middleware(GZipMiddleware, minimum_size=settings.GZIP_MIN_SIZE)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+
+@app.middleware("http")
+async def static_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if not request.url.path.startswith("/static/"):
+        return response
+
+    cache_control = f"public, max-age={settings.STATIC_CACHE_MAX_AGE}"
+    for pattern in settings.STATIC_IMMUTABLE_PATTERNS:
+        if re.search(pattern, request.url.path):
+            cache_control = f"public, max-age={settings.STATIC_IMMUTABLE_MAX_AGE}, immutable"
+            break
+
+    response.headers["Cache-Control"] = cache_control
+    response.headers["Vary"] = "Accept-Encoding"
+    return response
 
 # app.middleware("http")(rate_limit_middleware)
 
@@ -168,7 +190,13 @@ async def _crawl_dispatch(base_url: str, host: str, start_page: int, max_pages: 
     raise HTTPException(status_code=400, detail="Unsupported host")
 
 
-@api_v1_router.post("/scrapes", response_model=ScrapeResponse, tags=["Scraping"])
+@api_v1_router.post(
+    "/scrapes",
+    response_model=ScrapeResponse,
+    response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
+    tags=["Scraping"],
+)
 async def create_scrape(request: Request, body: ScrapeRequestV1) -> ScrapeResponse:
     """
     Scrape a single video URL.
@@ -192,7 +220,14 @@ async def create_scrape(request: Request, body: ScrapeRequestV1) -> ScrapeRespon
         raise HTTPException(status_code=502, detail="Failed to fetch url") from e
     return ScrapeResponse(**data)
 
-@api_v1_router.get("/videos", response_model=list[ListItem], response_model_exclude_unset=True, tags=["Videos"])
+@api_v1_router.get(
+    "/videos",
+    response_model=list[ListItem],
+    response_model_exclude_unset=True,
+    response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
+    tags=["Videos"],
+)
 async def list_videos(request: Request, base_url: str, page: int = 1, limit: int = 100) -> list[ListItem]:
     """
     List videos from a category/channel URL.
@@ -234,7 +269,13 @@ async def list_videos(request: Request, base_url: str, page: int = 1, limit: int
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch url: {e}") from e
 
-@api_v1_router.post("/crawls", response_model=list[ListItem], tags=["Crawling"])
+@api_v1_router.post(
+    "/crawls",
+    response_model=list[ListItem],
+    response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
+    tags=["Crawling"],
+)
 async def create_crawl(request: Request, body: CrawlRequestV1) -> list[ListItem]:
     """
     Crawl a site for videos.
@@ -267,7 +308,13 @@ async def create_crawl(request: Request, body: CrawlRequestV1) -> list[ListItem]
 # --- Categories ---
 # Aggregating categories into a cleaned up endpoint
 # GET /api/v1/categories?source=xnxx
-@api_v1_router.get("/categories", response_model=list[CategoryItem], tags=["Categories"])
+@api_v1_router.get(
+    "/categories",
+    response_model=list[CategoryItem],
+    response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
+    tags=["Categories"],
+)
 async def get_categories(source: str) -> list[CategoryItem]:
     """
     Get categories for a specific source.
@@ -478,7 +525,13 @@ api_v1_router.include_router(sports.router)
 # --- Notifications ---
 from app.models.schemas import NotificationResponse, NotificationItem
 
-@api_v1_router.get("/notifications", response_model=NotificationResponse, tags=["Notifications"])
+@api_v1_router.get(
+    "/notifications",
+    response_model=NotificationResponse,
+    response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
+    tags=["Notifications"],
+)
 async def get_notifications():
     """
     Get app notifications and announcements.
