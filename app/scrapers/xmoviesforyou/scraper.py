@@ -113,6 +113,33 @@ def _clean_card_title(s: str | None) -> str | None:
     return t or None
 
 
+def _uploader_from_list_title(title: str | None) -> str | None:
+    """
+    Listing cards often omit /studio/ links; titles use
+    «… ) NetworkOrStudio • 18th April 2026» — take the segment after the last ')'.
+    """
+    t = _clean_text(title)
+    if not t or "•" not in t:
+        return None
+    before = t.split("•", 1)[0].strip()
+    if ")" not in before:
+        return None
+    name = before.rsplit(")", 1)[-1].strip()
+    if not name or len(name) > 120:
+        return None
+    if "\n" in name:
+        return None
+    return name
+
+
+def _list_uploader_name(container: Any | None, title: str | None) -> str | None:
+    if container:
+        studio_a = container.select_one('a[href*="/studio/"]')
+        if studio_a:
+            return _clean_text(studio_a.get_text(" ", strip=True))
+    return _uploader_from_list_title(title)
+
+
 def _extract_date(text: str | None) -> str | None:
     raw = (text or "").strip()
     if not raw:
@@ -363,11 +390,7 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
         title = _clean_card_title(a.get_text(" ", strip=True)) or href.rstrip("/").split("/")[-1].replace("-", " ")
         container = _find_card_container(a)
         thumb = _extract_thumb(container)
-        uploader = None
-        if container:
-            studio_a = container.select_one('a[href*="/studio/"]')
-            if studio_a:
-                uploader = _clean_text(studio_a.get_text(" ", strip=True))
+        uploader = _list_uploader_name(container, title)
 
         upload_date = _extract_date(title)
         items.append(
@@ -397,11 +420,7 @@ def _parse_list_html(html: str, limit: int) -> list[dict[str, Any]]:
         seen.add(href)
         container = _find_card_container(a)
         thumb = _extract_thumb(container)
-        uploader = None
-        if container:
-            studio_a = container.select_one('a[href*="/studio/"]')
-            if studio_a:
-                uploader = _clean_text(studio_a.get_text(" ", strip=True))
+        uploader = _list_uploader_name(container, text)
         items.append(
             {
                 "url": href,
