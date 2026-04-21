@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import re
+import tempfile
 import time
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -55,6 +56,35 @@ async def fetch_page(url: str) -> str:
         )
         return any(n in h for n in needles)
 
+    def _cf_cache_path() -> str:
+        # Keep outside repo to avoid committing clearance cookies.
+        return os.path.join(tempfile.gettempdir(), "apphub3-pimpbunny-cf.json")
+
+    def _load_cached_cookie_header() -> Optional[str]:
+        try:
+            with open(_cf_cache_path(), "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return None
+            expires_at = float(data.get("expires_at") or 0)
+            if expires_at and time.time() > expires_at:
+                return None
+            ch = data.get("cookie_header")
+            return str(ch).strip() if ch else None
+        except Exception:
+            return None
+
+    def _save_cached_cookie_header(cookie_header: str, *, ttl_seconds: int = 6 * 60 * 60) -> None:
+        try:
+            payload = {
+                "expires_at": time.time() + int(ttl_seconds),
+                "cookie_header": cookie_header,
+            }
+            with open(_cf_cache_path(), "w", encoding="utf-8") as f:
+                json.dump(payload, f)
+        except Exception:
+            pass
+
     async def _fetch_with_curl_cffi() -> str:
         # `curl_cffi` is synchronous; keep it off the event loop.
         def _do() -> str:
@@ -72,45 +102,72 @@ async def fetch_page(url: str) -> str:
 
         return await asyncio.to_thread(_do)
 
-    async def _fetch_with_playwright() -> str:
-        # Cloudflare frequently requires a real browser. This is our last-resort fetch.
+    async def _fetch_with_nodriver() -> str:
+        """
+        Cloudflare bypass (2026): Nodriver (CDP-based, stealthy).
+        We use it as the final fallback to return the post-challenge HTML.
+        """
         try:
-            from playwright.async_api import async_playwright  # type: ignore
+            import nodriver as uc  # type: ignore
         except Exception as e:  # pragma: no cover
             raise RuntimeError(
-                "Playwright is required to bypass Cloudflare for pimpbunny. "
-                "Install it with `pip install playwright` and then run `python -m playwright install chromium`."
+                "Nodriver is required to bypass Cloudflare for pimpbunny. Install it with `pip install nodriver`."
             ) from e
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+        async def _run() -> str:
+            # Headless often fails on Cloudflare. Allow override via env var.
+            headless_env = (os.getenv("PIMPBUNNY_HEADLESS") or "").strip().lower()
+            headless = headless_env in ("1", "true", "yes", "y", "on")
+            browser = await uc.start(headless=headless)
             try:
-                context = await browser.new_context(
-                    user_agent=headers.get("User-Agent"),
-                    locale="en-US",
-                    viewport={"width": 1365, "height": 768},
-                )
-                page = await context.new_page()
-                await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-
-                # Give JS challenges time to complete and the final page to settle.
+                # Warm-up: homepage then target URL (behavioral trust).
                 try:
-                    await page.wait_for_load_state("networkidle", timeout=60_000)
+                    await browser.get("https://pimpbunny.com/")
+                    await asyncio.sleep(4)
                 except Exception:
                     pass
 
-                for _ in range(30):  # up to ~30s
-                    html = await page.content()
-                    if html and not _looks_like_cloudflare_challenge(html):
-                        return html
-                    await page.wait_for_timeout(1000)
+                page = await browser.get(url)
+                # Let Cloudflare JS/Turnstile settle (best-effort).
+                for _ in range(20):  # up to ~20s
+                    await asyncio.sleep(1)
+                    try:
+                        content = await page.get_content()
+                        if content and not _looks_like_cloudflare_challenge(content):
+                            return content
+                    except Exception:
+                        pass
 
-                return await page.content()
+                # Nodriver API uses get_content() per the referenced article.
+                content = await page.get_content()
+                return content or ""
             finally:
-                await browser.close()
+                try:
+                    stopped = browser.stop()
+                    if asyncio.iscoroutine(stopped):
+                        await stopped
+                except Exception:
+                    pass
+
+        # Hard timeout so we don't hang worker threads forever.
+        return await asyncio.wait_for(_run(), timeout=120.0)
 
     html: Optional[str] = None
     last_err: Optional[BaseException] = None
+
+    # If we have a user-provided cookie or a cached clearance cookie, try curl_cffi first (fast + browser-like TLS).
+    cached_cookie = _load_cached_cookie_header()
+    effective_cookie = cookie or cached_cookie
+    if effective_cookie:
+        headers["Cookie"] = effective_cookie
+        try:
+            html0 = await _fetch_with_curl_cffi()
+            if html0 and not _looks_like_cloudflare_challenge(html0):
+                if not cookie and effective_cookie != cached_cookie:
+                    _save_cached_cookie_header(effective_cookie)
+                return html0
+        except BaseException as e:
+            last_err = e
     try:
         html = await pool_fetch_html(url, headers=headers)
     except BaseException as e:
@@ -129,9 +186,9 @@ async def fetch_page(url: str) -> str:
     except BaseException as e:
         last_err = last_err or e
 
-    # Last resort: real browser.
+    # Last resort: stealth browser HTML (Nodriver).
     try:
-        html3 = await _fetch_with_playwright()
+        html3 = await _fetch_with_nodriver()
         if html3 and not _looks_like_cloudflare_challenge(html3):
             return html3
         raise RuntimeError(
