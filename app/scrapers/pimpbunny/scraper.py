@@ -29,13 +29,121 @@ def get_categories() -> list[dict]:
 
 
 async def fetch_page(url: str) -> str:
+    cookie = (os.getenv("PIMPBUNNY_COOKIE") or os.getenv("PIMPBUNNY_COOKIES") or "").strip()
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://pimpbunny.com/",
     }
-    return await pool_fetch_html(url, headers=headers)
+    if cookie:
+        headers["Cookie"] = cookie
+
+    def _looks_like_cloudflare_challenge(html: str) -> bool:
+        h = (html or "").lower()
+        if not h:
+            return False
+        needles = (
+            "cloudflare",
+            "/cdn-cgi/",
+            "cf-browser-verification",
+            "checking your browser",
+            "just a moment",
+            "verify you are human",
+            "attention required",
+            "turnstile",
+        )
+        return any(n in h for n in needles)
+
+    async def _fetch_with_curl_cffi() -> str:
+        # `curl_cffi` is synchronous; keep it off the event loop.
+        def _do() -> str:
+            from curl_cffi import requests as creq  # imported lazily to keep scraper import-light
+
+            resp = creq.get(
+                url,
+                headers=headers,
+                impersonate="chrome120",
+                timeout=30,
+                allow_redirects=True,
+            )
+            resp.raise_for_status()
+            return resp.text
+
+        return await asyncio.to_thread(_do)
+
+    async def _fetch_with_playwright() -> str:
+        # Cloudflare frequently requires a real browser. This is our last-resort fetch.
+        try:
+            from playwright.async_api import async_playwright  # type: ignore
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError(
+                "Playwright is required to bypass Cloudflare for pimpbunny. "
+                "Install it with `pip install playwright` and then run `python -m playwright install chromium`."
+            ) from e
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                context = await browser.new_context(
+                    user_agent=headers.get("User-Agent"),
+                    locale="en-US",
+                    viewport={"width": 1365, "height": 768},
+                )
+                page = await context.new_page()
+                await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+
+                # Give JS challenges time to complete and the final page to settle.
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=60_000)
+                except Exception:
+                    pass
+
+                for _ in range(30):  # up to ~30s
+                    html = await page.content()
+                    if html and not _looks_like_cloudflare_challenge(html):
+                        return html
+                    await page.wait_for_timeout(1000)
+
+                return await page.content()
+            finally:
+                await browser.close()
+
+    html: Optional[str] = None
+    last_err: Optional[BaseException] = None
+    try:
+        html = await pool_fetch_html(url, headers=headers)
+    except BaseException as e:
+        last_err = e
+
+    if html and not _looks_like_cloudflare_challenge(html):
+        return html
+
+    # Fallback for Cloudflare / bot challenges.
+    try:
+        html2 = await _fetch_with_curl_cffi()
+        if html2 and not _looks_like_cloudflare_challenge(html2):
+            return html2
+        # If we still look blocked, return whatever we have (helps debugging / non-CF failures).
+        return html2 or (html or "")
+    except BaseException as e:
+        last_err = last_err or e
+
+    # Last resort: real browser.
+    try:
+        html3 = await _fetch_with_playwright()
+        if html3 and not _looks_like_cloudflare_challenge(html3):
+            return html3
+        raise RuntimeError(
+            "PimpBunny is protected by Cloudflare and the scraper could not pass the verification challenge. "
+            "Export `PIMPBUNNY_COOKIE` with your browser cookies (must include `cf_clearance` when present) and retry."
+        )
+    except RuntimeError:
+        raise
+    except BaseException:
+        if html:
+            return html
+        raise last_err
 
 
 def _first_non_empty(*values: Optional[str]) -> Optional[str]:
