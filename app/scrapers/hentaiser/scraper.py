@@ -56,17 +56,20 @@ def _coerce_list(data: Any) -> list[dict[str, Any]]:
     return []
 
 
-def _ensure_absolute_media(url_or_path: Optional[str]) -> Optional[str]:
+def _ensure_absolute_media(url_or_path: Optional[str], media_host: Optional[str] = None) -> Optional[str]:
     if not url_or_path:
         return None
     raw = str(url_or_path).strip()
     if not raw:
         return None
+    host = (media_host or MEDIA_HOST).rstrip("/")
     if raw.startswith("http://") or raw.startswith("https://"):
-        return raw
+        parsed = urlparse(raw)
+        norm_path = "/" + (parsed.path or "").lstrip("/")
+        return f"{parsed.scheme}://{parsed.netloc}{norm_path}"
     if not raw.startswith("/"):
         raw = "/" + raw
-    return f"{MEDIA_HOST}{raw}"
+    return f"{host}/" + raw.lstrip("/")
 
 
 def _extract_media_path(url_or_path: Optional[str]) -> Optional[str]:
@@ -81,16 +84,67 @@ def _extract_media_path(url_or_path: Optional[str]) -> Optional[str]:
     return raw if raw.startswith("/") else f"/{raw}"
 
 
-def _build_video_stream(item: dict[str, Any]) -> dict[str, Any]:
-    video_url = _ensure_absolute_media(
-        _first_non_empty(
-            item.get("video"),
-            item.get("video_url"),
-            item.get("mp4"),
-            item.get("file"),
-            item.get("src"),
-        )
+def _is_video_url(url_or_path: Optional[str]) -> bool:
+    if not url_or_path:
+        return False
+    s = str(url_or_path).lower()
+    return s.endswith(".mp4") or ".mp4?" in s or s.endswith(".m3u8") or ".m3u8?" in s
+
+
+def _is_image_url(url_or_path: Optional[str]) -> bool:
+    if not url_or_path:
+        return False
+    s = str(url_or_path).lower()
+    return (
+        s.endswith(".jpg")
+        or s.endswith(".jpeg")
+        or s.endswith(".png")
+        or s.endswith(".webp")
+        or ".jpg?" in s
+        or ".jpeg?" in s
+        or ".png?" in s
+        or ".webp?" in s
     )
+
+
+def _pick_thumbnail_candidate(item: dict[str, Any]) -> Optional[str]:
+    for key in ("thumbnail", "thumbnail_url", "thumb", "preview", "poster", "image", "cover", "thumbnail_id"):
+        val = item.get(key)
+        if not val:
+            continue
+        if _is_video_url(val):
+            continue
+        return str(val)
+    return None
+
+
+def _pick_video_candidate(item: dict[str, Any]) -> Optional[str]:
+    for key in ("video", "video_url", "mp4", "file", "src", "video_id"):
+        val = item.get(key)
+        if not val:
+            continue
+        if _is_image_url(val):
+            continue
+        return str(val)
+    return None
+
+
+def _build_video_stream(item: dict[str, Any]) -> dict[str, Any]:
+    media_host = _first_non_empty(item.get("host"), MEDIA_HOST)
+    video_candidate = _pick_video_candidate(item)
+    if not video_candidate:
+        cover = _pick_thumbnail_candidate(item)
+        if cover:
+            c = str(cover).strip()
+            if c.lower().endswith(".jpg"):
+                video_candidate = c[:-4] + ".mp4"
+            elif c.lower().endswith(".jpeg"):
+                video_candidate = c[:-5] + ".mp4"
+            elif c.lower().endswith(".webp"):
+                video_candidate = c[:-5] + ".mp4"
+            elif c.lower().endswith(".png"):
+                video_candidate = c[:-4] + ".mp4"
+    video_url = _ensure_absolute_media(video_candidate, media_host=media_host)
     streams: list[dict[str, str]] = []
     if video_url:
         streams.append({"quality": "source", "url": video_url, "format": "mp4"})
@@ -103,16 +157,8 @@ def _build_video_stream(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _to_list_item(item: dict[str, Any]) -> dict[str, Any]:
-    thumbnail_url = _ensure_absolute_media(
-        _first_non_empty(
-            item.get("thumbnail"),
-            item.get("thumbnail_url"),
-            item.get("thumb"),
-            item.get("preview"),
-            item.get("poster"),
-            item.get("image"),
-        )
-    )
+    media_host = _first_non_empty(item.get("host"), MEDIA_HOST)
+    thumbnail_url = _ensure_absolute_media(_pick_thumbnail_candidate(item), media_host=media_host)
     page_url = _first_non_empty(
         item.get("url"),
         item.get("page_url"),
@@ -169,6 +215,24 @@ async def _fetch_videos(params: dict[str, Any]) -> list[dict[str, Any]]:
     return _coerce_list(data)
 
 
+def _extract_sort_from_base_url(base_url: str) -> Optional[str]:
+    """
+    Map web routes like /animes/viewed to API sort values.
+    """
+    try:
+        parsed = urlparse(base_url)
+        path_parts = [p for p in (parsed.path or "").strip("/").split("/") if p]
+    except Exception:
+        return None
+
+    if len(path_parts) >= 2 and path_parts[0].lower() == "animes":
+        mode = path_parts[1].lower()
+        allowed = {"viewed", "commented", "hot", "liked", "rated"}
+        if mode in allowed:
+            return mode
+    return None
+
+
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
     safe_page = max(1, int(page))
     safe_limit = min(max(1, int(limit)), 200)
@@ -179,6 +243,9 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         for k, v in parse_qsl(parsed.query, keep_blank_values=False):
             if k and v:
                 query_params[k] = v
+        inferred_sort = _extract_sort_from_base_url(base_url)
+        if inferred_sort and "sort" not in query_params:
+            query_params["sort"] = inferred_sort
     except Exception:
         pass
 
@@ -240,8 +307,16 @@ async def scrape(url: str) -> dict[str, Any]:
                 "media_host": MEDIA_HOST,
             }
 
-    # API-first scrape: take best first item from "top comments" feed.
-    rows = await _fetch_videos({"sort": "comments", "top": 1, "limit": 1})
+    # API-first scrape: choose feed from URL when possible.
+    scrape_params: dict[str, Any] = {"limit": 1}
+    inferred_sort = _extract_sort_from_base_url(url)
+    if inferred_sort:
+        scrape_params["sort"] = inferred_sort
+    else:
+        scrape_params["sort"] = "comments"
+        scrape_params["top"] = 1
+
+    rows = await _fetch_videos(scrape_params)
     if not rows:
         return {
             "url": url,
