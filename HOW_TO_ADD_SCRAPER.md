@@ -381,3 +381,95 @@ curl "http://127.0.0.1:8000/api/v1/categories?source=pimpbunny"
 
 curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://pimpbunny.com/videos/gracewearslace-receives-a-cumshot-after-sex/"
 ```
+
+## Hentaiser Implementation Notes
+
+[Hentaiser](https://app.hentaiser.app/) exposes a JSON API and media on a CDN host. For this source, scraper logic can be mostly API-first rather than HTML parsing.
+
+### Host aliases
+
+- `app.hentaiser.app` (site/API)
+- `api.hentaiser.app` (video feed API)
+- `media2.hentaiser.com` (thumbnail/video CDN)
+
+Example:
+
+```python
+def can_handle(host: str) -> bool:
+    h = (host or "").lower()
+    return (
+        h == "app.hentaiser.app"
+        or h.endswith(".hentaiser.app")
+        or h == "media2.hentaiser.com"
+        or h.endswith(".hentaiser.com")
+    )
+```
+
+### API-first listing (`list_videos`)
+
+Use the API endpoint as primary source:
+
+- `https://api.hentaiser.app/v1/videos?sort=comments&limit=4&top=1`
+
+Recommended approach:
+
+- Build requests against `https://api.hentaiser.app/v1/videos`.
+- Keep support for query params such as `sort`, `limit`, and `top`.
+- When `page` is requested by backend API, map it to whatever pagination Hentaiser returns (offset/page/cursor) and gracefully fallback to first page if absent.
+- Normalize response items to existing list schema (`url`, `title`, `thumbnail_url`, `duration`, `views`, `uploader_name`).
+
+### Media URL and ID extraction (`scrape`)
+
+Given sample URLs:
+
+- Thumbnail URL:
+  - `https://media2.hentaiser.com//videos/b/bb/bbd/bbd971bf7492a7ffc9d7e6a35d64dd73.jpg`
+- Video URL:
+  - `https://media2.hentaiser.com//videos/b/bb/bbd/bbd971bf7492a7ffc9d7e6a35d64dd73.mp4`
+
+Treat the CDN path as stable ID:
+
+- **thumbnail_id**: `/videos/b/bb/bbd/bbd971bf7492a7ffc9d7e6a35d64dd73.jpg`
+- **video_id**: `/videos/b/bb/bbd/bbd971bf7492a7ffc9d7e6a35d64dd73.mp4`
+- **media host**: `https://media2.hentaiser.com`
+
+Implementation tips:
+
+- Preserve nested path segments under `/videos/...` instead of reducing to only basename.
+- Store full URLs in `thumbnail_url` and stream URLs.
+- Add one MP4 stream entry (`format="mp4"`, `quality="source"` unless the API provides richer qualities).
+- Set `video.default` to that MP4 URL and `video.has_video=True`.
+
+### Registration checklist for Hentaiser
+
+Besides creating `backend/app/scrapers/hentaiser/`, update all of these:
+
+- `backend/app/scrapers/__init__.py`
+- `backend/app/main.py`
+  - import list
+  - `_scrape_dispatch`
+  - `_list_dispatch`
+  - `/api/v1/categories` source mapping (`source=hentaiser`)
+- `backend/app/services/video_streaming.py`
+  - scraper selection branch
+  - quality map (`source` or API-provided tiers)
+- `backend/app/services/global_search.py`
+  - `available_scrapers`
+  - search URL pattern (if Hentaiser API supports search, prefer API over HTML)
+  - trending registry (API-backed source)
+- `backend/app/api/endpoints/explore.py`
+  - add `ExploreSourceResponse` entry
+
+### Hentaiser verification examples
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/scrapes \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://app.hentaiser.app/\"}"
+
+curl "http://127.0.0.1:8000/api/v1/videos?base_url=https://api.hentaiser.app/v1/videos?sort=comments&top=1&page=1&limit=20"
+
+curl "http://127.0.0.1:8000/api/v1/categories?source=hentaiser"
+
+curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://media2.hentaiser.com//videos/b/bb/bbd/bbd971bf7492a7ffc9d7e6a35d64dd73.mp4"
+```
