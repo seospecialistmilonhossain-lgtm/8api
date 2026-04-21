@@ -229,6 +229,20 @@ async def _fetch_videos(params: dict[str, Any], endpoint: str = API_BASE) -> lis
     return _coerce_list(data)
 
 
+async def _fetch_video_by_gid(gid: str) -> Optional[dict[str, Any]]:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://app.hentaiser.app/",
+    }
+    endpoint = f"{API_BASE}/{gid}"
+    try:
+        data = await pool_fetch_json(endpoint, headers=headers)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
 def _resolve_endpoint_from_base_url(base_url: str) -> str:
     """
     Allow category URLs that use dedicated API paths (e.g. /v1/videos/hot).
@@ -266,6 +280,25 @@ def _extract_sort_from_base_url(base_url: str) -> Optional[str]:
             "rated": "rates",
         }
         return mode_to_sort.get(mode)
+    return None
+
+
+def _extract_gid_from_url(url: str) -> Optional[str]:
+    """
+    Supports:
+    - https://app.hentaiser.app/anime/{gid}
+    - https://api.hentaiser.app/v1/videos/{gid}
+    """
+    try:
+        parsed = urlparse(url)
+        parts = [p for p in (parsed.path or "").strip("/").split("/") if p]
+    except Exception:
+        return None
+
+    if len(parts) >= 2 and parts[0].lower() == "anime":
+        return parts[1]
+    if len(parts) >= 3 and parts[0].lower() == "v1" and parts[1].lower() == "videos":
+        return parts[2]
     return None
 
 
@@ -347,6 +380,24 @@ async def scrape(url: str) -> dict[str, Any]:
                 "video_id": _extract_media_path(stream_url),
                 "media_host": MEDIA_HOST,
             }
+
+    # Canonical anime page URL: fetch precise item by gid.
+    gid = _extract_gid_from_url(url)
+    if gid:
+        detail = await _fetch_video_by_gid(gid)
+        if detail:
+            # Normalize detail payload to our common item mapper.
+            detail_item: dict[str, Any] = dict(detail)
+            if "video" not in detail_item:
+                detail_item["video"] = detail.get("url")
+            if "thumbnail" not in detail_item:
+                detail_item["thumbnail"] = detail.get("cover")
+            if "views" not in detail_item:
+                detail_item["views"] = detail.get("views")
+            tags_raw = detail.get("tags")
+            if isinstance(tags_raw, str):
+                detail_item["tags"] = [t.strip() for t in tags_raw.split("|") if t.strip()]
+            return _to_scrape_item(detail_item, url)
 
     # API-first scrape: choose feed from URL when possible.
     scrape_params: dict[str, Any] = {"limit": 1}
