@@ -245,7 +245,7 @@ EXPLORE_SOURCES = [
         searchUrlTemplate="https://api.hentaiser.app/v1/videos?sort=latest&search={query}",
         sourceId="hentaiser",
         disable=False,
-        pageSize=20,
+        pageSize=72,
     ),
     ExploreSourceResponse(
         baseUrl="https://www.pornhat.com/",
