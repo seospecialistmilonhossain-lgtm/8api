@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import tempfile
@@ -13,6 +14,8 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from bs4 import BeautifulSoup
 
 from app.core.pool import pool as http_pool, fetch_html as pool_fetch_html
+
+logger = logging.getLogger(__name__)
 
 
 def can_handle(host: str) -> bool:
@@ -66,6 +69,12 @@ async def fetch_page(url: str) -> str:
         "yes",
         "y",
         "on",
+    )
+    logger.info(
+        "pimpbunny.fetch_page start url=%s cookie=%s disable_browser=%s",
+        url,
+        bool(cookie),
+        disable_browser_fallback,
     )
 
     def _cf_cache_path() -> str:
@@ -134,7 +143,26 @@ async def fetch_page(url: str) -> str:
             else:
                 # In hosted Linux containers (Railway), non-headless usually can't start (no display server).
                 headless = sys.platform != "win32"
-            browser = await uc.start(headless=headless)
+            # Container-safe flags for Railway / low-memory hosts.
+            browser_args = [
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-sync",
+                "--metrics-recording-only",
+                "--mute-audio",
+            ]
+            browser_executable_path = (os.getenv("PIMPBUNNY_BROWSER_PATH") or "").strip() or None
+            use_sandbox = not (sys.platform.startswith("linux"))
+            browser = await uc.start(
+                headless=headless,
+                browser_executable_path=browser_executable_path,
+                browser_args=browser_args,
+                sandbox=use_sandbox,
+            )
             try:
                 # Warm-up: homepage then target URL (behavioral trust).
                 try:
@@ -179,30 +207,39 @@ async def fetch_page(url: str) -> str:
         try:
             html0 = await _fetch_with_curl_cffi()
             if html0 and not _looks_like_cloudflare_challenge(html0):
+                logger.info("pimpbunny.fetch_page cookie path success url=%s", url)
                 if not cookie and effective_cookie != cached_cookie:
                     _save_cached_cookie_header(effective_cookie)
                 return html0
+            logger.warning("pimpbunny.fetch_page cookie path challenged url=%s", url)
         except BaseException as e:
+            logger.warning("pimpbunny.fetch_page cookie path failed url=%s err=%s", url, e)
             last_err = e
     try:
         html = await pool_fetch_html(url, headers=headers)
     except BaseException as e:
+        logger.warning("pimpbunny.fetch_page pool_fetch failed url=%s err=%s", url, e)
         last_err = e
 
     if html and not _looks_like_cloudflare_challenge(html):
+        logger.info("pimpbunny.fetch_page pool_fetch success url=%s", url)
         return html
 
     # Fallback for Cloudflare / bot challenges.
     try:
         html2 = await _fetch_with_curl_cffi()
         if html2 and not _looks_like_cloudflare_challenge(html2):
+            logger.info("pimpbunny.fetch_page curl_cffi fallback success url=%s", url)
             return html2
+        logger.warning("pimpbunny.fetch_page curl_cffi challenged url=%s", url)
         # If we still look blocked, return whatever we have (helps debugging / non-CF failures).
         return html2 or (html or "")
     except BaseException as e:
+        logger.warning("pimpbunny.fetch_page curl_cffi fallback failed url=%s err=%s", url, e)
         last_err = last_err or e
 
     if disable_browser_fallback:
+        logger.warning("pimpbunny.fetch_page browser fallback disabled url=%s", url)
         # On low-memory hosts (Railway free tier), avoid hard-failing the whole API request.
         # Return best-effort HTML; caller can parse or produce an empty list.
         return html or ""
@@ -211,14 +248,17 @@ async def fetch_page(url: str) -> str:
     try:
         html3 = await _fetch_with_nodriver()
         if html3 and not _looks_like_cloudflare_challenge(html3):
+            logger.info("pimpbunny.fetch_page nodriver success url=%s", url)
             return html3
+        logger.warning("pimpbunny.fetch_page nodriver challenged url=%s", url)
         raise RuntimeError(
             "PimpBunny is protected by Cloudflare and the scraper could not pass the verification challenge. "
             "Export `PIMPBUNNY_COOKIE` with your browser cookies (must include `cf_clearance` when present) and retry."
         )
     except RuntimeError:
         raise
-    except BaseException:
+    except BaseException as e:
+        logger.warning("pimpbunny.fetch_page nodriver failed url=%s err=%s", url, e)
         if html:
             return html
         raise last_err
@@ -598,12 +638,15 @@ def _build_list_page_url(base_url: str, page: int) -> str:
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
     page_url = _build_list_page_url(base_url, page)
+    logger.info("pimpbunny.list_videos start page_url=%s page=%s limit=%s", page_url, page, limit)
     try:
         html = await fetch_page(page_url)
     except Exception:
+        logger.exception("pimpbunny.list_videos fetch_page failed page_url=%s", page_url)
         return []
 
     if "just a moment" in html.lower() or "/cdn-cgi/" in html.lower():
+        logger.warning("pimpbunny.list_videos cloudflare challenge page_url=%s", page_url)
         return []
 
     soup = BeautifulSoup(html, "lxml")
@@ -658,4 +701,6 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
             }
         )
 
-    return items[:limit]
+    out = items[:limit]
+    logger.info("pimpbunny.list_videos parsed items=%s page_url=%s", len(out), page_url)
+    return out
