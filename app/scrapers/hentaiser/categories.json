@@ -2,7 +2,7 @@
   { "id": "latest", "name": "Latest", "url": "https://app.hentaiser.app/animes/latest" },
   { "id": "animes-viewed", "name": "Animes Viewed", "url": "https://api.hentaiser.app/v1/videos?sort=views" },
   { "id": "animes-commented", "name": "Animes Commented", "url": "https://api.hentaiser.app/v1/videos?sort=comments" },
-  { "id": "animes-hot", "name": "Animes Hot", "url": "https://app.hentaiser.app/animes/hot" },
+  { "id": "animes-hot", "name": "Animes Hot", "url": "https://api.hentaiser.app/v1/videos/hot" },
   { "id": "animes-liked", "name": "Animes Liked", "url": "https://api.hentaiser.app/v1/videos?sort=likes" },
   { "id": "animes-rated", "name": "Animes Rated", "url": "https://api.hentaiser.app/v1/videos?sort=rates" }
 ]
