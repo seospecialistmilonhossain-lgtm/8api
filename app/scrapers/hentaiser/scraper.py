@@ -129,21 +129,27 @@ def _pick_video_candidate(item: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _derive_video_from_cover(item: dict[str, Any]) -> Optional[str]:
+    cover = _pick_thumbnail_candidate(item)
+    if not cover:
+        return None
+    c = str(cover).strip()
+    if c.lower().endswith(".jpg"):
+        return c[:-4] + ".mp4"
+    if c.lower().endswith(".jpeg"):
+        return c[:-5] + ".mp4"
+    if c.lower().endswith(".webp"):
+        return c[:-5] + ".mp4"
+    if c.lower().endswith(".png"):
+        return c[:-4] + ".mp4"
+    return None
+
+
 def _build_video_stream(item: dict[str, Any]) -> dict[str, Any]:
     media_host = _first_non_empty(item.get("host"), MEDIA_HOST)
     video_candidate = _pick_video_candidate(item)
     if not video_candidate:
-        cover = _pick_thumbnail_candidate(item)
-        if cover:
-            c = str(cover).strip()
-            if c.lower().endswith(".jpg"):
-                video_candidate = c[:-4] + ".mp4"
-            elif c.lower().endswith(".jpeg"):
-                video_candidate = c[:-5] + ".mp4"
-            elif c.lower().endswith(".webp"):
-                video_candidate = c[:-5] + ".mp4"
-            elif c.lower().endswith(".png"):
-                video_candidate = c[:-4] + ".mp4"
+        video_candidate = _derive_video_from_cover(item)
     video_url = _ensure_absolute_media(video_candidate, media_host=media_host)
     streams: list[dict[str, str]] = []
     if video_url:
@@ -159,7 +165,14 @@ def _build_video_stream(item: dict[str, Any]) -> dict[str, Any]:
 def _to_list_item(item: dict[str, Any]) -> dict[str, Any]:
     media_host = _first_non_empty(item.get("host"), MEDIA_HOST)
     thumbnail_url = _ensure_absolute_media(_pick_thumbnail_candidate(item), media_host=media_host)
+    anime_gid = _first_non_empty(item.get("gid"))
+    derived_anime_url = f"https://app.hentaiser.app/anime/{anime_gid}" if anime_gid else None
+    derived_video_url = _ensure_absolute_media(_derive_video_from_cover(item), media_host=media_host)
     page_url = _first_non_empty(
+        # Prefer canonical anime page URL when gid exists.
+        derived_anime_url,
+        # Fallback to unique playable URL to avoid client-side dedupe collapsing to one item.
+        derived_video_url,
         item.get("url"),
         item.get("page_url"),
         item.get("link"),
@@ -227,7 +240,7 @@ def _extract_sort_from_base_url(base_url: str) -> Optional[str]:
 
     if len(path_parts) >= 2 and path_parts[0].lower() == "animes":
         mode = path_parts[1].lower()
-        allowed = {"viewed", "commented", "hot", "liked", "rated"}
+        allowed = {"latest", "viewed", "commented", "hot", "liked", "rated"}
         if mode in allowed:
             return mode
     return None
