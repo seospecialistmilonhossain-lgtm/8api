@@ -9,6 +9,7 @@ from app.core.pool import fetch_json as pool_fetch_json
 
 
 API_BASE = "https://api.hentaiser.app/v1/videos"
+API_HOT = "https://api.hentaiser.app/v1/videos/hot"
 MEDIA_HOST = "https://media2.hentaiser.com"
 
 
@@ -218,14 +219,29 @@ def _to_scrape_item(item: dict[str, Any], url: str) -> dict[str, Any]:
     }
 
 
-async def _fetch_videos(params: dict[str, Any]) -> list[dict[str, Any]]:
+async def _fetch_videos(params: dict[str, Any], endpoint: str = API_BASE) -> list[dict[str, Any]]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Referer": "https://app.hentaiser.app/",
     }
-    data = await pool_fetch_json(API_BASE, headers=headers, params=params)
+    data = await pool_fetch_json(endpoint, headers=headers, params=params)
     return _coerce_list(data)
+
+
+def _resolve_endpoint_from_base_url(base_url: str) -> str:
+    """
+    Allow category URLs that use dedicated API paths (e.g. /v1/videos/hot).
+    """
+    try:
+        parsed = urlparse(base_url)
+        host = (parsed.netloc or "").lower()
+        path = (parsed.path or "").rstrip("/").lower()
+        if host == "api.hentaiser.app" and path == "/v1/videos/hot":
+            return API_HOT
+    except Exception:
+        pass
+    return API_BASE
 
 
 def _extract_sort_from_base_url(base_url: str) -> Optional[str]:
@@ -261,6 +277,7 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         safe_limit = 20
 
     query_params: dict[str, Any] = {"limit": safe_limit}
+    endpoint = _resolve_endpoint_from_base_url(base_url)
     try:
         parsed = urlparse(base_url)
         for k, v in parse_qsl(parsed.query, keep_blank_values=False):
@@ -282,12 +299,12 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         query_params.setdefault("offset", (safe_page - 1) * safe_limit)
 
     try:
-        rows = await _fetch_videos(query_params)
+        rows = await _fetch_videos(query_params, endpoint=endpoint)
     except Exception:
         if safe_page > 1 and "offset" in query_params:
             query_params.pop("offset", None)
             try:
-                rows = await _fetch_videos(query_params)
+                rows = await _fetch_videos(query_params, endpoint=endpoint)
             except Exception:
                 return []
         else:
