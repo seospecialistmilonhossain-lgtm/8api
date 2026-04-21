@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 import time
+import sys
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -117,7 +118,11 @@ async def fetch_page(url: str) -> str:
         async def _run() -> str:
             # Headless often fails on Cloudflare. Allow override via env var.
             headless_env = (os.getenv("PIMPBUNNY_HEADLESS") or "").strip().lower()
-            headless = headless_env in ("1", "true", "yes", "y", "on")
+            if headless_env:
+                headless = headless_env in ("1", "true", "yes", "y", "on")
+            else:
+                # In hosted Linux containers (Railway), non-headless usually can't start (no display server).
+                headless = sys.platform != "win32"
             browser = await uc.start(headless=headless)
             try:
                 # Warm-up: homepage then target URL (behavioral trust).
