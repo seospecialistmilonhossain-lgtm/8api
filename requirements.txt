@@ -41,6 +41,3 @@ flower==2.0.1
 
 # Browser Impersonation (Anti-Bot Bypass)
 curl_cffi==0.7.3
-
-# Stealth browser automation fallback (for Cloudflare-protected sites)
-nodriver

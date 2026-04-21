@@ -2,20 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 import re
-import tempfile
 import time
-import sys
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
 from app.core.pool import pool as http_pool, fetch_html as pool_fetch_html
-
-logger = logging.getLogger(__name__)
 
 
 def can_handle(host: str) -> bool:
@@ -34,239 +29,13 @@ def get_categories() -> list[dict]:
 
 
 async def fetch_page(url: str) -> str:
-    cookie = (os.getenv("PIMPBUNNY_COOKIE") or os.getenv("PIMPBUNNY_COOKIES") or "").strip()
-    # Accept either full cookie header ("a=b; c=d") or raw cf_clearance token.
-    if cookie and "=" not in cookie:
-        cookie = f"cf_clearance={cookie}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://pimpbunny.com/",
     }
-    if cookie:
-        headers["Cookie"] = cookie
-
-    def _looks_like_cloudflare_challenge(html: str) -> bool:
-        h = (html or "").lower()
-        if not h:
-            return False
-        needles = (
-            "cloudflare",
-            "/cdn-cgi/",
-            "cf-browser-verification",
-            "checking your browser",
-            "just a moment",
-            "verify you are human",
-            "attention required",
-            "turnstile",
-        )
-        return any(n in h for n in needles)
-
-    disable_browser_fallback = (os.getenv("PIMPBUNNY_DISABLE_BROWSER") or "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    )
-    proxy_url = (os.getenv("PIMPBUNNY_PROXY_URL") or os.getenv("PIMPBUNNY_PROXY") or "").strip()
-    logger.info(
-        "pimpbunny.fetch_page start url=%s cookie=%s disable_browser=%s proxy=%s",
-        url,
-        bool(cookie),
-        disable_browser_fallback,
-        bool(proxy_url),
-    )
-
-    def _cf_cache_path() -> str:
-        # Keep outside repo to avoid committing clearance cookies.
-        return os.path.join(tempfile.gettempdir(), "apphub3-pimpbunny-cf.json")
-
-    def _load_cached_cookie_header() -> Optional[str]:
-        try:
-            with open(_cf_cache_path(), "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, dict):
-                return None
-            expires_at = float(data.get("expires_at") or 0)
-            if expires_at and time.time() > expires_at:
-                return None
-            ch = data.get("cookie_header")
-            return str(ch).strip() if ch else None
-        except Exception:
-            return None
-
-    def _save_cached_cookie_header(cookie_header: str, *, ttl_seconds: int = 6 * 60 * 60) -> None:
-        try:
-            payload = {
-                "expires_at": time.time() + int(ttl_seconds),
-                "cookie_header": cookie_header,
-            }
-            with open(_cf_cache_path(), "w", encoding="utf-8") as f:
-                json.dump(payload, f)
-        except Exception:
-            pass
-
-    async def _fetch_with_curl_cffi() -> str:
-        # `curl_cffi` is synchronous; keep it off the event loop.
-        def _do() -> str:
-            from curl_cffi import requests as creq  # imported lazily to keep scraper import-light
-            kwargs: dict[str, Any] = {
-                "headers": headers,
-                "impersonate": "chrome120",
-                "timeout": 30,
-                "allow_redirects": True,
-            }
-            if proxy_url:
-                kwargs["proxies"] = {"http": proxy_url, "https": proxy_url}
-            resp = creq.get(url, **kwargs)
-            resp.raise_for_status()
-            return resp.text
-
-        return await asyncio.to_thread(_do)
-
-    async def _fetch_with_nodriver() -> str:
-        """
-        Cloudflare bypass (2026): Nodriver (CDP-based, stealthy).
-        We use it as the final fallback to return the post-challenge HTML.
-        """
-        try:
-            import nodriver as uc  # type: ignore
-        except Exception as e:  # pragma: no cover
-            raise RuntimeError(
-                "Nodriver is required to bypass Cloudflare for pimpbunny. Install it with `pip install nodriver`."
-            ) from e
-
-        async def _run() -> str:
-            # Headless often fails on Cloudflare. Allow override via env var.
-            headless_env = (os.getenv("PIMPBUNNY_HEADLESS") or "").strip().lower()
-            if headless_env:
-                headless = headless_env in ("1", "true", "yes", "y", "on")
-            else:
-                # In hosted Linux containers (Railway), non-headless usually can't start (no display server).
-                headless = sys.platform != "win32"
-            # Container-safe flags for Railway / low-memory hosts.
-            browser_args = [
-                "--no-first-run",
-                "--no-default-browser-check",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--disable-sync",
-                "--metrics-recording-only",
-                "--mute-audio",
-            ]
-            browser_executable_path = (os.getenv("PIMPBUNNY_BROWSER_PATH") or "").strip() or None
-            use_sandbox = not (sys.platform.startswith("linux"))
-            if proxy_url:
-                browser_args.append(f"--proxy-server={proxy_url}")
-            browser = await uc.start(
-                headless=headless,
-                browser_executable_path=browser_executable_path,
-                browser_args=browser_args,
-                sandbox=use_sandbox,
-            )
-            try:
-                # Warm-up: homepage then target URL (behavioral trust).
-                try:
-                    await browser.get("https://pimpbunny.com/")
-                    await asyncio.sleep(4)
-                except Exception:
-                    pass
-
-                page = await browser.get(url)
-                # Let Cloudflare JS/Turnstile settle (best-effort).
-                for _ in range(20):  # up to ~20s
-                    await asyncio.sleep(1)
-                    try:
-                        content = await page.get_content()
-                        if content and not _looks_like_cloudflare_challenge(content):
-                            return content
-                    except Exception:
-                        pass
-
-                # Nodriver API uses get_content() per the referenced article.
-                content = await page.get_content()
-                return content or ""
-            finally:
-                try:
-                    stopped = browser.stop()
-                    if asyncio.iscoroutine(stopped):
-                        await stopped
-                except Exception:
-                    pass
-
-        # Hard timeout so we don't hang worker threads forever.
-        return await asyncio.wait_for(_run(), timeout=120.0)
-
-    html: Optional[str] = None
-    last_err: Optional[BaseException] = None
-
-    # If we have a user-provided cookie or a cached clearance cookie, try curl_cffi first (fast + browser-like TLS).
-    cached_cookie = _load_cached_cookie_header()
-    effective_cookie = cookie or cached_cookie
-    if effective_cookie:
-        headers["Cookie"] = effective_cookie
-        try:
-            html0 = await _fetch_with_curl_cffi()
-            if html0 and not _looks_like_cloudflare_challenge(html0):
-                logger.info("pimpbunny.fetch_page cookie path success url=%s", url)
-                if not cookie and effective_cookie != cached_cookie:
-                    _save_cached_cookie_header(effective_cookie)
-                return html0
-            logger.warning("pimpbunny.fetch_page cookie path challenged url=%s", url)
-        except BaseException as e:
-            logger.warning("pimpbunny.fetch_page cookie path failed url=%s err=%s", url, e)
-            last_err = e
-    try:
-        html = await pool_fetch_html(url, headers=headers)
-    except BaseException as e:
-        logger.warning("pimpbunny.fetch_page pool_fetch failed url=%s err=%s", url, e)
-        last_err = e
-
-    if html and not _looks_like_cloudflare_challenge(html):
-        logger.info("pimpbunny.fetch_page pool_fetch success url=%s", url)
-        return html
-
-    # Fallback for Cloudflare / bot challenges.
-    try:
-        html2 = await _fetch_with_curl_cffi()
-        if html2 and not _looks_like_cloudflare_challenge(html2):
-            logger.info("pimpbunny.fetch_page curl_cffi fallback success url=%s", url)
-            return html2
-        logger.warning("pimpbunny.fetch_page curl_cffi challenged url=%s", url)
-        # If we still look blocked, return whatever we have (helps debugging / non-CF failures).
-        return html2 or (html or "")
-    except BaseException as e:
-        logger.warning("pimpbunny.fetch_page curl_cffi fallback failed url=%s err=%s", url, e)
-        last_err = last_err or e
-
-    if disable_browser_fallback:
-        logger.warning("pimpbunny.fetch_page browser fallback disabled url=%s", url)
-        # On low-memory hosts (Railway free tier), avoid hard-failing the whole API request.
-        # Return best-effort HTML; caller can parse or produce an empty list.
-        return html or ""
-
-    # Last resort: stealth browser HTML (Nodriver).
-    try:
-        html3 = await _fetch_with_nodriver()
-        if html3 and not _looks_like_cloudflare_challenge(html3):
-            logger.info("pimpbunny.fetch_page nodriver success url=%s", url)
-            return html3
-        logger.warning("pimpbunny.fetch_page nodriver challenged url=%s", url)
-        raise RuntimeError(
-            "PimpBunny is protected by Cloudflare and the scraper could not pass the verification challenge. "
-            "Export `PIMPBUNNY_COOKIE` with your browser cookies (must include `cf_clearance` when present) and retry."
-        )
-    except RuntimeError:
-        raise
-    except BaseException as e:
-        logger.warning("pimpbunny.fetch_page nodriver failed url=%s err=%s", url, e)
-        if html:
-            return html
-        raise last_err
+    return await pool_fetch_html(url, headers=headers)
 
 
 def _first_non_empty(*values: Optional[str]) -> Optional[str]:
@@ -643,15 +412,9 @@ def _build_list_page_url(base_url: str, page: int) -> str:
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
     page_url = _build_list_page_url(base_url, page)
-    logger.info("pimpbunny.list_videos start page_url=%s page=%s limit=%s", page_url, page, limit)
     try:
         html = await fetch_page(page_url)
     except Exception:
-        logger.exception("pimpbunny.list_videos fetch_page failed page_url=%s", page_url)
-        return []
-
-    if "just a moment" in html.lower() or "/cdn-cgi/" in html.lower():
-        logger.warning("pimpbunny.list_videos cloudflare challenge page_url=%s", page_url)
         return []
 
     soup = BeautifulSoup(html, "lxml")
@@ -706,6 +469,4 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
             }
         )
 
-    out = items[:limit]
-    logger.info("pimpbunny.list_videos parsed items=%s page_url=%s", len(out), page_url)
-    return out
+    return items[:limit]
