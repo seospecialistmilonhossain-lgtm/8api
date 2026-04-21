@@ -70,11 +70,13 @@ async def fetch_page(url: str) -> str:
         "y",
         "on",
     )
+    proxy_url = (os.getenv("PIMPBUNNY_PROXY_URL") or os.getenv("PIMPBUNNY_PROXY") or "").strip()
     logger.info(
-        "pimpbunny.fetch_page start url=%s cookie=%s disable_browser=%s",
+        "pimpbunny.fetch_page start url=%s cookie=%s disable_browser=%s proxy=%s",
         url,
         bool(cookie),
         disable_browser_fallback,
+        bool(proxy_url),
     )
 
     def _cf_cache_path() -> str:
@@ -110,14 +112,15 @@ async def fetch_page(url: str) -> str:
         # `curl_cffi` is synchronous; keep it off the event loop.
         def _do() -> str:
             from curl_cffi import requests as creq  # imported lazily to keep scraper import-light
-
-            resp = creq.get(
-                url,
-                headers=headers,
-                impersonate="chrome120",
-                timeout=30,
-                allow_redirects=True,
-            )
+            kwargs: dict[str, Any] = {
+                "headers": headers,
+                "impersonate": "chrome120",
+                "timeout": 30,
+                "allow_redirects": True,
+            }
+            if proxy_url:
+                kwargs["proxies"] = {"http": proxy_url, "https": proxy_url}
+            resp = creq.get(url, **kwargs)
             resp.raise_for_status()
             return resp.text
 
@@ -157,6 +160,8 @@ async def fetch_page(url: str) -> str:
             ]
             browser_executable_path = (os.getenv("PIMPBUNNY_BROWSER_PATH") or "").strip() or None
             use_sandbox = not (sys.platform.startswith("linux"))
+            if proxy_url:
+                browser_args.append(f"--proxy-server={proxy_url}")
             browser = await uc.start(
                 headless=headless,
                 browser_executable_path=browser_executable_path,
