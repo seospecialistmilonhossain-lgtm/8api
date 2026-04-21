@@ -32,6 +32,9 @@ def get_categories() -> list[dict]:
 
 async def fetch_page(url: str) -> str:
     cookie = (os.getenv("PIMPBUNNY_COOKIE") or os.getenv("PIMPBUNNY_COOKIES") or "").strip()
+    # Accept either full cookie header ("a=b; c=d") or raw cf_clearance token.
+    if cookie and "=" not in cookie:
+        cookie = f"cf_clearance={cookie}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -200,11 +203,9 @@ async def fetch_page(url: str) -> str:
         last_err = last_err or e
 
     if disable_browser_fallback:
-        raise RuntimeError(
-            "PimpBunny is Cloudflare-protected and browser fallback is disabled "
-            "(PIMPBUNNY_DISABLE_BROWSER=1). Set PIMPBUNNY_COOKIE with a valid "
-            "browser session cookie (cf_clearance when present)."
-        )
+        # On low-memory hosts (Railway free tier), avoid hard-failing the whole API request.
+        # Return best-effort HTML; caller can parse or produce an empty list.
+        return html or ""
 
     # Last resort: stealth browser HTML (Nodriver).
     try:
@@ -597,13 +598,13 @@ def _build_list_page_url(base_url: str, page: int) -> str:
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
     page_url = _build_list_page_url(base_url, page)
-    html = await fetch_page(page_url)
+    try:
+        html = await fetch_page(page_url)
+    except Exception:
+        return []
 
     if "just a moment" in html.lower() or "/cdn-cgi/" in html.lower():
-        raise RuntimeError(
-            "Cloudflare challenge page returned for listing URL. "
-            "Provide PIMPBUNNY_COOKIE (cf_clearance) or enable browser fallback."
-        )
+        return []
 
     soup = BeautifulSoup(html, "lxml")
     items: list[dict[str, Any]] = []
