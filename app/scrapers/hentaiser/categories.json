@@ -1,8 +1,8 @@
 [
-  { "id": "latest", "name": "Latest", "url": "https://api.hentaiser.app/v1/videos?sort=latest" },
-  { "id": "animes-viewed", "name": "Animes Viewed", "url": "https://api.hentaiser.app/v1/videos?sort=viewed" },
-  { "id": "animes-commented", "name": "Animes Commented", "url": "https://api.hentaiser.app/v1/videos?sort=commented" },
-  { "id": "animes-hot", "name": "Animes Hot", "url": "https://api.hentaiser.app/v1/videos?sort=hot" },
-  { "id": "animes-liked", "name": "Animes Liked", "url": "https://api.hentaiser.app/v1/videos?sort=liked" },
-  { "id": "animes-rated", "name": "Animes Rated", "url": "https://api.hentaiser.app/v1/videos?sort=rated" }
+  { "id": "latest", "name": "Latest", "url": "https://app.hentaiser.app/animes/latest" },
+  { "id": "animes-viewed", "name": "Animes Viewed", "url": "https://app.hentaiser.app/animes/viewed" },
+  { "id": "animes-commented", "name": "Animes Commented", "url": "https://app.hentaiser.app/animes/commented" },
+  { "id": "animes-hot", "name": "Animes Hot", "url": "https://app.hentaiser.app/animes/hot" },
+  { "id": "animes-liked", "name": "Animes Liked", "url": "https://app.hentaiser.app/animes/liked" },
+  { "id": "animes-rated", "name": "Animes Rated", "url": "https://app.hentaiser.app/animes/rated" }
 ]

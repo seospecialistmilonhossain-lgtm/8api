@@ -235,7 +235,7 @@ EXPLORE_SOURCES = [
         pageSize=32,
     ),
     ExploreSourceResponse(
-        baseUrl="https://api.hentaiser.app/v1/videos?sort=latest",
+        baseUrl="https://app.hentaiser.app/animes/latest",
         nickname="Hentaiser",
         favicon="https://app.hentaiser.app/favicon.ico",
         accentColor="#6A1B9A",
