@@ -236,6 +236,9 @@ def _extract_sort_from_base_url(base_url: str) -> Optional[str]:
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
     safe_page = max(1, int(page))
     safe_limit = min(max(1, int(limit)), 200)
+    # Some clients send limit=1 for Hentaiser category calls; enforce a practical page size.
+    if safe_limit < 20:
+        safe_limit = 20
 
     query_params: dict[str, Any] = {"limit": safe_limit}
     try:
@@ -250,7 +253,8 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         pass
 
     query_params.setdefault("sort", "comments")
-    query_params.setdefault("top", "1")
+    # Do not force top=1 globally; it can collapse listings to a single item.
+    # Keep top only when explicitly passed by base_url query.
 
     # Try common pagination styles used by JSON APIs.
     if safe_page > 1:
