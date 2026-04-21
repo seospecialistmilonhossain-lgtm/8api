@@ -240,9 +240,16 @@ def _extract_sort_from_base_url(base_url: str) -> Optional[str]:
 
     if len(path_parts) >= 2 and path_parts[0].lower() == "animes":
         mode = path_parts[1].lower()
-        allowed = {"latest", "viewed", "commented", "hot", "liked", "rated"}
-        if mode in allowed:
-            return mode
+        mode_to_sort = {
+            "latest": "latest",
+            "viewed": "views",
+            "commented": "comments",
+            # "hot" route has no distinct upstream sort; map to views-like ranking.
+            "hot": "views",
+            "liked": "likes",
+            "rated": "rates",
+        }
+        return mode_to_sort.get(mode)
     return None
 
 
