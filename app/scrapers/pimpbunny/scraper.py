@@ -57,6 +57,14 @@ async def fetch_page(url: str) -> str:
         )
         return any(n in h for n in needles)
 
+    disable_browser_fallback = (os.getenv("PIMPBUNNY_DISABLE_BROWSER") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    )
+
     def _cf_cache_path() -> str:
         # Keep outside repo to avoid committing clearance cookies.
         return os.path.join(tempfile.gettempdir(), "apphub3-pimpbunny-cf.json")
@@ -190,6 +198,13 @@ async def fetch_page(url: str) -> str:
         return html2 or (html or "")
     except BaseException as e:
         last_err = last_err or e
+
+    if disable_browser_fallback:
+        raise RuntimeError(
+            "PimpBunny is Cloudflare-protected and browser fallback is disabled "
+            "(PIMPBUNNY_DISABLE_BROWSER=1). Set PIMPBUNNY_COOKIE with a valid "
+            "browser session cookie (cf_clearance when present)."
+        )
 
     # Last resort: stealth browser HTML (Nodriver).
     try:
@@ -582,10 +597,13 @@ def _build_list_page_url(base_url: str, page: int) -> str:
 
 async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[dict[str, Any]]:
     page_url = _build_list_page_url(base_url, page)
-    try:
-        html = await fetch_page(page_url)
-    except Exception:
-        return []
+    html = await fetch_page(page_url)
+
+    if "just a moment" in html.lower() or "/cdn-cgi/" in html.lower():
+        raise RuntimeError(
+            "Cloudflare challenge page returned for listing URL. "
+            "Provide PIMPBUNNY_COOKIE (cf_clearance) or enable browser fallback."
+        )
 
     soup = BeautifulSoup(html, "lxml")
     items: list[dict[str, Any]] = []
