@@ -6,7 +6,7 @@ router = APIRouter()
 # Dummy Data matching the frontend implementation plan
 # In the future, this data will be fetched from a database table
 DUMMY_MEDIA_CONFIG = MediaConfigData(
-    title="IPTV",
+    title="Media",
     description="Choose a provider and category to start watching",
     pin="1234",
     providers=[
@@ -44,7 +44,7 @@ DUMMY_MEDIA_CONFIG = MediaConfigData(
                     id="BD",
                     title="Bangladesh",
                     type="live",
-                    logo_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/Flag_of_Bangladesh.svg",
+                    logo_url="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/Flag_of_Bangladesh.svg.png",
                     color_hex="#4CAF50",
                     playlist_url="https://raw.githubusercontent.com/imShakil/tvlink/refs/heads/main/iptv.m3u8",
                 ),
