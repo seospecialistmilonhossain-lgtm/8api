@@ -154,6 +154,22 @@ def _extract_date(text: str | None) -> str | None:
     return None
 
 
+def _normalize_embed_url(url: str) -> str:
+    p = urlparse(url)
+    host = (p.netloc or "").lower().replace("www.", "")
+    path = p.path or ""
+
+    # Normalize known providers to their embed route.
+    if host == "mixdrp.click":
+        path = re.sub(r"^/f/([^/?#]+)", r"/e/\1", path)
+    elif host == "playmogo.com":
+        path = re.sub(r"^/d/([^/?#]+)", r"/e/\1", path)
+    elif host == "streamtape.com":
+        path = re.sub(r"^/v/([^/?#]+)", r"/e/\1", path)
+
+    return urlunparse((p.scheme, p.netloc, path, p.params, p.query, p.fragment))
+
+
 def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], str | None]:
     streams: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -178,7 +194,10 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
     for container in provider_containers:
         for a in container.select("a[href]"):
             full = _abs_url(a.get("href"))
-            if not full or full in seen:
+            if not full:
+                continue
+            full = _normalize_embed_url(full)
+            if full in seen:
                 continue
 
             p = urlparse(full)
@@ -216,6 +235,7 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
         full = _abs_url(href)
         if not full:
             continue
+        full = _normalize_embed_url(full)
         p = urlparse(full)
         host = (p.netloc or "").lower()
         text = a.get_text(" ", strip=True).lower()
