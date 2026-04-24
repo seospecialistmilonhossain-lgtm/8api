@@ -4,7 +4,7 @@
 VERSION = "8.0.0"
 BUILD_NUMBER = 8
 # Force all builds older than the current release to update.
-MIN_SUPPORTED_BUILD = BUILD_NUMBER
+MIN_SUPPORTED_BUILD = 7
 RELEASE_DATE = "2026-04-23"
 
 # File Information
