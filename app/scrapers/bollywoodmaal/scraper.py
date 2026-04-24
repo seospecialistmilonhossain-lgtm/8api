@@ -91,6 +91,16 @@ def _clean_views_text(v: str | None) -> Optional[str]:
     return txt or None
 
 
+def _extract_views_text(text: str | None) -> Optional[str]:
+    if not text:
+        return None
+    # Handles both "29K views" and plain "29K" snippets.
+    m = re.search(r"(\d[\d,\.]*\s*[KMBkmb]?)\s*(?:views|view)?\b", text, re.IGNORECASE)
+    if not m:
+        return None
+    return _clean_views_text(m.group(1))
+
+
 def _normalize_video_href(href: str) -> Optional[str]:
     href = (href or "").strip()
     if not href:
@@ -256,9 +266,7 @@ def parse_video_page(html: str, url: str) -> dict[str, Any]:
     dm = re.search(r"\b(?:\d{1,2}:){1,2}\d{2}\b", text_blob)
     if dm:
         duration = dm.group(0)
-    vm = re.search(r"(\d[\d,\.]*\s*[KMB]?)\s*(?:views|view)\b", text_blob, re.IGNORECASE)
-    if vm:
-        views = _clean_views_text(vm.group(1))
+    views = _extract_views_text(text_blob)
 
     video = _extract_streams(soup, html)
     return {
@@ -333,9 +341,12 @@ async def list_videos(base_url: str, page: int = 1, limit: int = 100) -> list[di
         dm = re.search(r"\b(?:\d{1,2}:){1,2}\d{2}\b", ctext)
         if dm:
             duration = dm.group(0)
-        vm = re.search(r"(\d[\d,\.]*\s*[KMB]?)\s*(?:views|view)\b", ctext, re.IGNORECASE)
-        if vm:
-            views = _clean_views_text(vm.group(1))
+
+        # Primary source for this theme: <span class="views"><i ...></i> 29K</span>
+        views_el = container.select_one("span.views") if container else None
+        views = _extract_views_text(views_el.get_text(" ", strip=True) if views_el else None)
+        if not views:
+            views = _extract_views_text(ctext)
 
         seen.add(href)
         items.append(
