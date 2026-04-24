@@ -217,7 +217,8 @@ def _extract_streams(soup: BeautifulSoup, html: str) -> dict[str, Any]:
     hls = next((s for s in streams if s.get("format") == "hls"), None)
     embed = next((s for s in streams if s.get("format") == "embed"), None)
 
-    default_url = direct_mp4["url"] if direct_mp4 else (hls["url"] if hls else (embed["url"] if embed else None))
+    # Prefer embed as default when available for this source.
+    default_url = embed["url"] if embed else (direct_mp4["url"] if direct_mp4 else (hls["url"] if hls else None))
     hls_url = hls["url"] if hls else None
 
     return {

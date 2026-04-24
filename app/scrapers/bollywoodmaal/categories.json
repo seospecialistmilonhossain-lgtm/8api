@@ -1,4 +1,8 @@
 [
+  { "id": "latest-videos", "name": "Latest videos", "url": "https://bollywoodmaal.com/" },
+  { "id": "most-viewed-videos", "name": "Most viewed videos", "url": "https://bollywoodmaal.com/?filter=most-viewed" },
+  { "id": "longest-videos", "name": "Longest videos", "url": "https://bollywoodmaal.com/?filter=longest" },
+  { "id": "random-videos", "name": "Random videos", "url": "https://bollywoodmaal.com/?filter=random" },
   { "id": "bollywood-xxx", "name": "Bollywood XXX", "url": "https://bollywoodmaal.com/bollywood-xxx/" },
   { "id": "tollywood", "name": "Tollywood", "url": "https://bollywoodmaal.com/tollywood/" },
   { "id": "tv-celebrity", "name": "TV Celebrity", "url": "https://bollywoodmaal.com/tv-celebrity/" },
