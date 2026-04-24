@@ -166,27 +166,12 @@ def _stream_quality_from_url(url: str) -> str:
         return f"{q.group(1)}p"
     if ".m3u8" in low:
         return "adaptive"
-    return "default"
+    return "source"
 
 
 def _extract_streams(soup: BeautifulSoup, html: str) -> dict[str, Any]:
     streams: list[dict[str, str]] = []
     seen: set[str] = set()
-
-    # Native <video> sources
-    for source in soup.select("video source[src], video[src]"):
-        src = (source.get("src") or "").strip()
-        if not src:
-            continue
-        if src.startswith("//"):
-            src = f"https:{src}"
-        if src.startswith("/"):
-            src = urljoin("https://bollywoodmaal.com/", src)
-        if not src.startswith("http") or src in seen:
-            continue
-        seen.add(src)
-        fmt = "hls" if ".m3u8" in src.lower() else "mp4"
-        streams.append({"url": src, "quality": _stream_quality_from_url(src), "format": fmt})
 
     # Embedded iframes
     server_idx = 1
@@ -204,32 +189,12 @@ def _extract_streams(soup: BeautifulSoup, html: str) -> dict[str, Any]:
         streams.append({"url": src, "quality": f"Server {server_idx}", "format": "embed"})
         server_idx += 1
 
-    # Inline script links
-    for src in _extract_inline_urls(html):
-        if src in seen:
-            continue
-        seen.add(src)
-        fmt = "hls" if ".m3u8" in src.lower() else "mp4"
-        streams.append({"url": src, "quality": _stream_quality_from_url(src), "format": fmt})
-
-    def _score(s: dict[str, str]) -> int:
-        fmt = s.get("format", "")
-        if fmt == "embed":
-            return -1
-        q = s.get("quality", "")
-        if q in ("source", "default"):
-            return 2000
-        digits = "".join(ch for ch in q if ch.isdigit())
-        return int(digits) if digits else (1000 if fmt == "hls" else 0)
-
-    streams.sort(key=_score, reverse=True)
-    direct_mp4 = next((s for s in streams if s.get("format") == "mp4"), None)
-    hls = next((s for s in streams if s.get("format") == "hls"), None)
+    # Keep embed-only streams for BollywoodMaal.
     embed = next((s for s in streams if s.get("format") == "embed"), None)
 
     # Prefer embed as default when available for this source.
-    default_url = embed["url"] if embed else (direct_mp4["url"] if direct_mp4 else (hls["url"] if hls else None))
-    hls_url = hls["url"] if hls else None
+    default_url = embed["url"] if embed else None
+    hls_url = None
 
     return {
         "streams": streams,
