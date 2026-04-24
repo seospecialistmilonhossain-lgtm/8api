@@ -473,3 +473,90 @@ curl "http://127.0.0.1:8000/api/v1/categories?source=hentaiser"
 
 curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://media2.hentaiser.com//videos/b/bb/bbd/bbd971bf7492a7ffc9d7e6a35d64dd73.mp4"
 ```
+
+## BollywoodMaal Implementation Notes
+
+[BollywoodMaal](https://bollywoodmaal.com/) is a WordPress-style tube site with homepage/category card grids, pagination links, and post pages that usually expose playable sources in HTML or inline script/player config blocks.
+
+### Host aliases
+
+- `bollywoodmaal.com`
+- `www.bollywoodmaal.com`
+
+Example:
+
+```python
+def can_handle(host: str) -> bool:
+    h = (host or "").lower()
+    return h == "bollywoodmaal.com" or h.endswith(".bollywoodmaal.com")
+```
+
+### Listing and pagination (`list_videos`)
+
+Use a resilient card parser so theme/layout changes do not break quickly:
+
+- Parse item links from anchors that look like video-post targets (title cards / thumbnails).
+- Keep only unique links under the same domain and skip utility URLs (`/contact`, auth/profile paths, policy pages).
+- Prefer metadata in this order:
+  - title: anchor `title`, image `alt`, then visible text
+  - thumbnail: `data-src`, `data-lazy-src`, `srcset` first URL, then `src`
+  - duration: parse card text using `mm:ss` / `hh:mm:ss` regex
+  - views: parse numeric counters (`129`, `1K`, `34K`) from nearby text
+- Page 1 should use `base_url` unchanged.
+- For page > 1, follow the site pager links first (`/page/{n}/`, `?paged={n}`, or explicit numbered pager URLs). If no pager exists, fallback to appending `?paged={page}`.
+
+### Metadata and streams (`scrape`)
+
+For detail pages:
+
+- Extract metadata from:
+  1. `og:title`, `og:description`, `og:image`
+  2. `twitter:title`, `twitter:description`, `twitter:image`
+  3. JSON-LD `VideoObject` (`name`, `description`, `thumbnailUrl`, `duration`)
+  4. visible title/header fallback
+- For playable sources, scan:
+  - `<video>` tags (`source[src]`, `video[src]`)
+  - `<iframe src>` embeds (external host streams)
+  - inline scripts for direct `.mp4` / `.m3u8` URLs
+- Unescape script URLs before use (`\\/` -> `/`, `\\u0026` -> `&`).
+- Build `video.streams` entries:
+  - direct files: `format="mp4"` / `format="hls"`
+  - embedded players: `format="embed"` and `quality` like `Server 1`, `Server 2`
+- Set `video.default` with this preference:
+  1. highest quality direct MP4
+  2. HLS URL
+  3. first embed URL
+
+### Registration checklist for BollywoodMaal
+
+Besides creating `backend/app/scrapers/bollywoodmaal/`, update all of these:
+
+- `backend/app/scrapers/__init__.py`
+- `backend/app/main.py`
+  - import list
+  - `_scrape_dispatch`
+  - `_list_dispatch`
+  - `/api/v1/categories` source mapping (`source=bollywoodmaal`)
+- `backend/app/services/video_streaming.py`
+  - scraper selection branch
+  - unsupported-host help text
+- `backend/app/services/global_search.py`
+  - `available_scrapers`
+  - search URL pattern (`https://bollywoodmaal.com/?s={query}`)
+  - trending registry (`https://bollywoodmaal.com/`)
+- `backend/app/api/endpoints/explore.py`
+  - add `ExploreSourceResponse` entry
+
+### BollywoodMaal verification examples
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/scrapes \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://bollywoodmaal.com/<video-post-slug>/\"}"
+
+curl "http://127.0.0.1:8000/api/v1/videos?base_url=https://bollywoodmaal.com/&page=1&limit=20"
+
+curl "http://127.0.0.1:8000/api/v1/categories?source=bollywoodmaal"
+
+curl "http://127.0.0.1:8000/api/v1/videos/stream?url=https://bollywoodmaal.com/<video-post-slug>/"
+```

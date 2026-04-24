@@ -55,7 +55,7 @@ async def global_search(
     start_time = time()
     
     # Import scraper modules
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny, hentaiser
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny, hentaiser, bollywoodmaal
     
     # Build scraper registry (until we have real registry)
     available_scrapers = {
@@ -76,6 +76,7 @@ async def global_search(
         'hornysimp': hornysimp,
         'pimpbunny': pimpbunny,
         'hentaiser': hentaiser,
+        'bollywoodmaal': bollywoodmaal,
     }
     
     # Determine which sites to search
@@ -174,6 +175,7 @@ def _build_search_url(site_name: str, query: str, scraper_module) -> str:
         "hornysimp": f"https://hornysimp.com/?s={query_encoded}",
         "pimpbunny": f"https://pimpbunny.com/search/{query_encoded}/",
         "hentaiser": f"https://api.hentaiser.app/v1/videos?sort=comments&top=1&limit=20&search={query_encoded}",
+        "bollywoodmaal": f"https://bollywoodmaal.com/?s={query_encoded}",
     }
     
     return search_patterns.get(site_name)
@@ -227,7 +229,7 @@ async def global_trending(
     
     Similar to global search but uses trending pages
     """
-    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny, hentaiser
+    from app.scrapers import xhamster, xnxx, xvideos, masa49, pornhub, youporn, redtube, beeg, spankbang, hqporner, hanime, oppai, xmoviesforyou, tnaflix, hornysimp, pimpbunny, hentaiser, bollywoodmaal
     
     available_scrapers = {
         'xhamster': (xhamster, "https://xhamster.com/trending"),
@@ -247,6 +249,7 @@ async def global_trending(
         'hornysimp': (hornysimp, "https://hornysimp.com/"),
         'pimpbunny': (pimpbunny, "https://pimpbunny.com/videos/"),
         'hentaiser': (hentaiser, "https://api.hentaiser.app/v1/videos?sort=comments&top=1"),
+        'bollywoodmaal': (bollywoodmaal, "https://bollywoodmaal.com/"),
     }
     
     if not sites:
