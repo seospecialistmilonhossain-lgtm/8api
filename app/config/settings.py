@@ -1,7 +1,7 @@
 import os
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
 from pydantic import field_validator
-from typing import Optional, Any
+from typing import Optional, Any, Annotated
 from functools import lru_cache
 
 class Settings(BaseSettings):
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     STATIC_CDN_BASE_URL: str = ""
     STATIC_CACHE_MAX_AGE: int = 3600
     STATIC_IMMUTABLE_MAX_AGE: int = 31536000
-    STATIC_IMMUTABLE_PATTERNS: list[str] = [r"\.[a-f0-9]{8,}\."]
+    STATIC_IMMUTABLE_PATTERNS: Annotated[list[str], NoDecode] = [r"\.[a-f0-9]{8,}\."]
     
     # API Auth
     REQUIRE_AUTH: bool = False
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
             except: pass
         return [i.strip() for i in v.split(",") if i.strip()]
 
-    @field_validator("STATIC_IMMUTABLE_PATTERNS", mode="after")
+    @field_validator("STATIC_IMMUTABLE_PATTERNS", mode="before")
     @classmethod
     def parse_static_immutable_patterns(cls, v: Any) -> list[str]:
         if isinstance(v, list):
