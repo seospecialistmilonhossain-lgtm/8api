@@ -166,7 +166,7 @@ def _stream_quality_from_url(url: str) -> str:
         return f"{q.group(1)}p"
     if ".m3u8" in low:
         return "adaptive"
-    return "source"
+    return "default"
 
 
 def _extract_streams(soup: BeautifulSoup, html: str) -> dict[str, Any]:
@@ -217,7 +217,7 @@ def _extract_streams(soup: BeautifulSoup, html: str) -> dict[str, Any]:
         if fmt == "embed":
             return -1
         q = s.get("quality", "")
-        if q == "source":
+        if q in ("source", "default"):
             return 2000
         digits = "".join(ch for ch in q if ch.isdigit())
         return int(digits) if digits else (1000 if fmt == "hls" else 0)
