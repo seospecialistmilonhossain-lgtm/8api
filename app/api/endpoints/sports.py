@@ -191,8 +191,6 @@ def _is_valid_stream_url(value: str) -> bool:
     lower = v.lower()
     if lower in {"http", "https", "http:", "https:", "http:/", "https:/"}:
         return False
-    if lower.endswith(".mpd") or ".mpd?" in lower:
-        return False
     if not (lower.startswith("http://") or lower.startswith("https://") or lower.startswith("rtmp://")):
         return False
     parts = v.split("://", 1)
