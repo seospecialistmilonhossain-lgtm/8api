@@ -231,7 +231,7 @@ EXPLORE_SOURCES = [
         hasCategories=True,
         searchUrlTemplate="https://pimpbunny.com/search/{query}/",
         sourceId="pimpbunny",
-        disable= True,
+        disable= False,
         pageSize=32,
     ),
     ExploreSourceResponse(
