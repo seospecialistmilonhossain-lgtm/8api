@@ -8,17 +8,17 @@ RELEASE_DATE = "2026-04-23"
 
 # File Information
 DOWNLOAD_URLS = {
-    "arm64-v8a": "",
-    "armeabi-v7a": "",
+    "arm64-v8a": "http://apphubx.store/apphub/app/app-arm64-v8a-release.apk",
+    "armeabi-v7a": "http://apphubx.store/apphub/app/app-armeabi-v7a-release.apk",
     "x86": "",
-    "x86_64": "",
+    "x86_64": "http://apphubx.store/apphub/app/app-x86_64-release.apk",
     "universal": ""
 }
 DOWNLOAD_SIZES = {
-    "arm64-v8a": 28500000,
-    "armeabi-v7a": 26500000,
-    "x86": 29000000,
-    "x86_64": 30000000,
+    "arm64-v8a": 22000000,
+    "armeabi-v7a": 2200000,
+    "x86": 23000000,
+    "x86_64": 23000000,
     "universal": 40000000
 }
 DOWNLOAD_URL = DOWNLOAD_URLS["universal"]
