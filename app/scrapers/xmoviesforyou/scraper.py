@@ -162,8 +162,12 @@ def _normalize_embed_url(url: str) -> str:
     # Normalize known providers to their embed route.
     if host == "mixdrp.click":
         path = re.sub(r"^/f/([^/?#]+)", r"/e/\1", path)
+    elif host == "m1xdrop.bz":
+        path = re.sub(r"^/f/([^/?#]+)", r"/e/\1", path)
     elif host == "playmogo.com":
         path = re.sub(r"^/d/([^/?#]+)", r"/e/\1", path)
+    elif host == "myvidplay.com":
+        path = re.sub(r"^/(?:v|d|f)/([^/?#]+)", r"/e/\1", path)
     elif host == "streamtape.com":
         path = re.sub(r"^/v/([^/?#]+)", r"/e/\1", path)
 
@@ -179,8 +183,10 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
         h = (host or "").lower().replace("www.", "")
         if "STREAMTAPE" in t or "streamtape" in h:
             return "streamtape"
-        if "MIXDROP" in t or "mixdrop" in t or "mixdrp" in h:
+        if "MIXDROP" in t or "mixdrop" in t or "mixdrp" in h or "m1xdrop" in h:
             return "mixdrop"
+        if "MYVIDPLAY" in t or "myvidplay" in h:
+            return "myvidplay"
         if "DOOD" in t or "DOODSTREAM" in t or "dood" in h or "playmogo.com" in h:
             return "doodstream"
         # Avoid literal "embed" — it collides in flat quality maps and triggers wrong client branches.
@@ -241,7 +247,10 @@ def _extract_stream_links(soup: BeautifulSoup) -> tuple[list[dict[str, Any]], st
         text = a.get_text(" ", strip=True).lower()
         title = (a.get("title") or "").lower()
 
-        likely_stream_link = any(x in text or x in title for x in ("watch stream", "download", "streamtape", "mixdrop", "doodstream"))
+        likely_stream_link = any(
+            x in text or x in title
+            for x in ("watch stream", "download", "streamtape", "mixdrop", "doodstream", "m1xdrop", "myvidplay")
+        )
         if not likely_stream_link:
             continue
 
