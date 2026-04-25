@@ -17,7 +17,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://masa49.cam/",
         nickname="Masa",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/logo%20(1).png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/logo%20(1).png",
         accentColor="#7C4DFF",
         category="porn",
         isVerified=False,
@@ -29,7 +29,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://xhamster.com/",
         nickname="xHamster",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon.ico",
         accentColor="#FF5252",
         category="porn",
         isVerified=False,
@@ -41,7 +41,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.xnxx.com/",
         nickname="XNXX",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(1).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(1).ico",
         accentColor="#448AFF",
         category="porn",
         isVerified=False,
@@ -53,7 +53,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.xvideos.com/",
         nickname="XVideos",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(2).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(2).ico",
         accentColor="#FFAB40",
         category="porn",
         isVerified=False,
@@ -65,7 +65,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.pornhub.com/",
         nickname="Pornhub",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(3).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(3).ico",
         accentColor="#FF9100",
         category="porn",
         isVerified=False,
@@ -77,7 +77,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.youporn.com/",
         nickname="YouPorn",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(4).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(4).ico",
         accentColor="#FF4081",
         category="porn",
         isVerified=False,
@@ -89,7 +89,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.redtube.com/",
         nickname="RedTube",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(5).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(5).ico",
         accentColor="#D32F2F",
         category="porn",
         isVerified=False,
@@ -101,7 +101,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://beeg.com/",
         nickname="Beeg",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/logo%20(2).png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/logo%20(2).png",
         accentColor="#00BFA5",
         category="porn",
         isVerified=False,
@@ -113,7 +113,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://spankbang.com/",
         nickname="SpankBang",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(6).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(6).ico",
         accentColor="#FFC107",
         category="porn",
         isVerified=False,
@@ -125,7 +125,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://fapnut.net/",
         nickname="OnlyFans",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(7).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(7).ico",
         accentColor="#00AFF0",
         category="porn",
         isVerified=False,
@@ -137,7 +137,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://pornxp.io/",
         nickname="PornXP",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon.png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon.png",
         accentColor="#1a2137",
         category="porn",
         isVerified=False,
@@ -149,7 +149,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://hqporner.com/",
         nickname="HQPorner",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(8).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(8).ico",
         accentColor="#E91E63",
         category="porn",
         isVerified=False,
@@ -161,7 +161,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://xxxparodyhd.net/",
         nickname="XXXParodyHD",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/xxx.png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/xxx.png",
         accentColor="#E040FB",
         category="porn",
         isVerified=False,
@@ -173,7 +173,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.pornwex.tv/",
         nickname="PornWex",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(18).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(18).ico",
         accentColor="#FF6D00",
         category="porn",
         isVerified=False,
@@ -185,7 +185,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.tube8.com/",
         nickname="Tube8",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(17).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(17).ico",
         accentColor="#E53935",
         category="porn",
         isVerified=False,
@@ -198,7 +198,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.tnaflix.com/",
         nickname="TNAFlix",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/tnaflix.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/tnaflix.ico",
         accentColor="#EC407A",
         category="porn",
         isVerified=False,
@@ -211,7 +211,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://hornysimp.com/",
         nickname="HornySimp",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/hornysimp.png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/hornysimp.png",
         accentColor="#607D8B",
         category="porn",
         isVerified=False,
@@ -224,7 +224,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://pimpbunny.com/videos/",
         nickname="PimpBunny",
-        favicon="https://pimpbunny.com/static/v2/images/favicon/favicon-32x32.png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/pimpbunny.png",
         accentColor="#E91E63",
         category="porn",
         isVerified=False,
@@ -237,7 +237,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://app.hentaiser.app/animes/",
         nickname="Hentaiser",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/hentaizer.webp",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/hentaizer.webp",
         accentColor="#6A1B9A",
         category="hentai",
         isVerified=False,
@@ -250,7 +250,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://bollywoodmaal.com/",
         nickname="BollywoodMaal",
-        favicon="https://bollywoodmaal.com/wp-content/uploads/2023/11/cropped-bollywoom-maal-logo-32x32.png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/bollywoodmaal.png",
         accentColor="#AD1457",
         category="porn",
         isVerified=False,
@@ -263,7 +263,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.pornhat.com/",
         nickname="PornHat",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(16).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(16).ico",
         accentColor="#212121",
         category="porn",
         isVerified=False,
@@ -276,7 +276,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://brazzpw.com/",
         nickname="BrazzPW",
-        favicon="https://github.com/milon4999/apphub-release/raw/refs/heads/main/logo/favicon%20(15).ico",
+        favicon="https://github.com/freelancermilonid132bd-ui/apphub/raw/refs/heads/main/logo/favicon%20(15).ico",
         accentColor="#FF9800",
         category="porn",
         isVerified=False,
@@ -289,7 +289,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://www.gosexpod.com/",
         nickname="Gosexpod",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/favicon%20(14).ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/favicon%20(14).ico",
         accentColor="#673AB7",
         category="porn",
         isVerified=False,
@@ -302,7 +302,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://watcherotic.com/",
         nickname="Watcherotic",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/watch.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/watch.ico",
         accentColor="#00BCD4",
         category="porn",
         isVerified=False,
@@ -315,7 +315,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://rule34video.com/",
         nickname="Rule34Video",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/rule34.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/rule34.ico",
         accentColor="#4CAF50",
         category="hentai",
         isVerified=False,
@@ -328,7 +328,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://haho.moe/",
         nickname="Haho",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/haho.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/haho.ico",
         accentColor="#FBC02D",
         category="hentai",
         isVerified=False,
@@ -341,7 +341,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://hanime.tv/",
         nickname="HAnime",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/hanime.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/hanime.ico",
         accentColor="#f10031",
         category="hentai",
         isVerified=True,
@@ -354,7 +354,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://oppai.stream/",
         nickname="Oppai",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/oppai.png",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/oppai.png",
         accentColor="#C3083F",
         category="hentai",
         isVerified=False,
@@ -367,7 +367,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://xmoviesforyou.com/",
         nickname="XMoviesForYou",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/xmovies.ico",
+        favicon="https://raw.githubusercontent.comfreelancermilonid132bd-ui/apphub/refs/heads/main/logo/xmovies.ico",
         accentColor="#8E24AA",
         category="porn",
         isVerified=False,
@@ -380,7 +380,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://rou.video/",
         nickname="Rou",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/rou.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/rou.ico",
         accentColor="#E91E63",
         category="porn",
         isVerified=False,
@@ -393,7 +393,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://fikfap.com/",
         nickname="TikTok",
-        favicon="https://raw.githubusercontent.com/milon4999/apphub-release/refs/heads/main/logo/cropped-protiktok18-favicon-32x32.webp",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/cropped-protiktok18-favicon-32x32.webp",
         accentColor="#E91E63",
         category="porn",
         isVerified=True,
