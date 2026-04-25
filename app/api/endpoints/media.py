@@ -87,7 +87,7 @@ DUMMY_MEDIA_CONFIG = MediaConfigData(
                     type="live",
                     logo_url="https://apkfolder.io/wp-content/uploads/2026/03/live.webp",
                     color_hex="#00BCD4",
-                    playlist_url="https://sportzfys.streamit.workers.dev?url=https://raw.githubusercontent.com/abusaeeidx/BDxTV/refs/heads/main/playlist_s.m3u",
+                    playlist_url="https://raw.githubusercontent.com/abusaeeidx/BDxTV/refs/heads/main/playlist_s.m3u",
                 ),
                 MediaCategoryResponse(
                     id="SportzfySpecial",
