@@ -367,7 +367,7 @@ EXPLORE_SOURCES = [
     ExploreSourceResponse(
         baseUrl="https://xmoviesforyou.com/",
         nickname="XMoviesForYou",
-        favicon="https://raw.githubusercontent.comfreelancermilonid132bd-ui/apphub/refs/heads/main/logo/xmovies.ico",
+        favicon="https://raw.githubusercontent.com/freelancermilonid132bd-ui/apphub/refs/heads/main/logo/xmovies.ico",
         accentColor="#8E24AA",
         category="porn",
         isVerified=False,
