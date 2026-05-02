@@ -33,7 +33,7 @@ IS_MANDATORY = False  # If True, prompts an update regardless of MIN_SUPPORTED_B
 TELEGRAM_CHANNEL = "https://t.me/+IDEuHZyD9lc5Y2Jl"
 
 # Changelog Details
-CHANGELOG_TITLE = "🎉 What's New in v8.0.0"
+CHANGELOG_TITLE = "🎉 What's New in v9.0.0"
 CHANGELOG = """
 ✨ Major Features
 • Added 14+ New website support
